@@ -21,6 +21,12 @@ class ReplyQualityTests(unittest.TestCase):
     def test_complaint_does_not_confirm_alleged_staff_rudeness(self):
         output=self.output('We apologize for the wait time and the rudeness you encountered. Please contact support@example.com.','complaint','Service complaint')
         self.assertFalse(validate_output(output,'support@example.com',{'comment':'The staff were rude','rating':2}))
+    def test_latest_rudeness_assertion_is_rejected(self):
+        output=self.output('Sorry to hear that you experienced a long wait and were treated rudely by our staff. Please contact support@example.com.','complaint','long wait and rudeness')
+        self.assertFalse(validate_output(output,'support@example.com',{'comment':'The staff were rude','rating':2}))
+    def test_reported_rudeness_can_be_acknowledged_as_concern(self):
+        output=self.output("Sorry to hear about your concerns with the wait and service. Please email support@example.com so the team can look into what happened.",'complaint','Reported service concern')
+        self.assertTrue(validate_output(output,'support@example.com',{'comment':'The staff were rude','rating':2}))
     def test_acknowledge_concern_without_confirming_incident(self):
         output=self.output("We're sorry to hear about your concerns regarding the service. Please contact support@example.com so the team can look into what happened.",'complaint','Customer reports service concerns')
         self.assertTrue(validate_output(output,'support@example.com',{'comment':'The staff were rude','rating':2}))

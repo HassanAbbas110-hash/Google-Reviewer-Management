@@ -47,7 +47,7 @@ def validate_output(output,contact,review=None):
         approved_contacts=CONTACT.findall(contact)
         if approved_contacts and re.search(r'\b(?:contact|reach|email|e-mail|call|message)\b|published support details|usual contact channels',reply,re.I) and not any(value in reply for value in approved_contacts): return False
         # Acknowledge a reported concern; do not repeat it as a verified incident.
-        if re.search(r'rudeness (?:you (?:encountered|experienced)|of our staff)|our rude staff|we (?:are|were) rude',reply,re.I): return False
+        if re.search(r'rudeness (?:you (?:encountered|experienced)|of our staff)|our rude staff|we (?:are|were) rude|(?:were|was|been) (?:treated|spoken to) rudely|our staff treated you rudely',reply,re.I): return False
     return True
 
 
