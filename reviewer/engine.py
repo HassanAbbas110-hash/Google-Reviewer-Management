@@ -4,7 +4,7 @@ from datetime import datetime,timezone
 import threading
 import time
 from reviewer.database import fingerprint
-from reviewer.ai import assess,validate_output
+from reviewer.ai import assess,validate_output,combine_risk
 
 RATINGS={'ONE':1,'TWO':2,'THREE':3,'FOUR':4,'FIVE':5}
 
@@ -52,9 +52,9 @@ class Engine:
                 if not b['facts_approved']:
                     self.db.change_job(bid,jid,status='needs_approval',reason='Approve business facts first'); return
                 output=self.ai.generate(b,{'comment':text[:6000],'rating':rating})
-                if not validate_output(output,b['contact']):
-                    self.db.change_job(bid,jid,status='needs_approval',reason='AI output failed validation; write a reply manually',investigation='open' if risk!='routine' else 'none'); return
-                if output['risk']!='routine': risk=output['risk']
+                risk=combine_risk(risk,output)
+                if not validate_output(output,b['contact'],{'comment':text,'rating':rating}):
+                    self.db.change_job(bid,jid,status='needs_approval',risk=risk,reason='AI output failed validation; write a reply manually',investigation='open' if risk!='routine' else 'none'); return
                 self.db.change_job(bid,jid,status='needs_approval',draft=output['reply'],risk=risk,reason=output['reason'],facts_version=b['version'],investigation='open' if risk!='routine' else 'none',error='')
                 if allow_auto and all(b[k] for k in ('consent','facts_approved','auto_enabled','pilot_verified')) and risk=='routine': self._publish(bid,jid)
             except Exception as exc:
