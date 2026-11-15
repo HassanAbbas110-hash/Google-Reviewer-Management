@@ -11,3 +11,8 @@ token*.json
 .env.*
 !.env.example
 *.log
+
+.update-backups/
+demo-update/
+*.demo-next
+*.save-fix-backup

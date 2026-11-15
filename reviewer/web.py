@@ -89,6 +89,29 @@ def create_app(db,engine):
             elif action=='reconcile': engine.process(bid,jid)
             else: abort(404)
         return redirect('/business/'+str(bid))
+    @app.route('/business/<int:bid>/demo',methods=['GET','POST'])
+    def demo(bid):
+        from reviewer.demo import generate_demo,SAMPLES
+        b=business(bid); text=''; rating=5; result=None; error=''; elapsed=None; status=200
+        if request.method=='POST':
+            try:
+                if request.form.get('preset'):
+                    sample=SAMPLES.get(request.form['preset'])
+                    if not sample: raise ValueError('Choose one of the available sample reviews.')
+                    text=sample['text']; rating=sample['rating']
+                else:
+                    text=request.form.get('review',''); rating=int(request.form.get('rating','0'))
+                started=time.perf_counter()
+                # Same operator lock as settings edits; a draft uses one fact version.
+                with engine.lock:
+                    b=business(bid)
+                    result=generate_demo(b,engine.ai,text,rating)
+                elapsed=round(time.perf_counter()-started,1)
+            except ValueError as exc: error=str(exc); status=400
+            except Exception:
+                error='Could not generate a reply. Check that Ollama is running, the saved model name matches ollama list, and the model has enough memory. No Google action was attempted.'
+                status=503
+        return render_template('demo.html',b=b,samples=SAMPLES,result=result,error=error,text=text,rating=rating,elapsed=elapsed),status
     @app.post('/business/<int:bid>/extract')
     def website(bid):
         b=business(bid)
