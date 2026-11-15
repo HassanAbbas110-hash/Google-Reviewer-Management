@@ -45,6 +45,21 @@ def validation_error(output,contact,review=None):
             if review.get('rating',0)>=4 and (len(reply)>180 or CONTACT.search(reply)): return 'Rating-only reply is too long or includes a support contact.'
         source=str(review.get('comment',''))
         if PARKING_CONCERN.search(source) and not re.search(r'\bpark(?:ing)?\b',reply,re.I): return 'Reply ignores the parking concern.'
+        if re.search(r'\bwe (?:noticed|observed|saw|confirmed)\b',reply,re.I):
+            return 'Reply invents a business observation or confirmation.'
+        if re.search(r'great to hear our friendly team and clean shop',reply,re.I):
+            return 'Reply contains an incomplete sentence about the team and shop.'
+        if re.search(r'no complaints? (?:were|was|are|is|have been|has been) addressed',source,re.I) and not re.search(r'\b(?:unaddressed|unresolved|not addressed|weren.t addressed|concerns?|complaints?|look into)\b',reply,re.I):
+            return 'Reply ignores the unresolved complaint and responds as though it were praise.'
+        if re.search(r'\b(?:waited|long wait|half an hour)\b',source,re.I) and not re.search(r'\b(?:wait|waiting|delay|delays|waited)\b',reply,re.I):
+            return 'Reply omits the reported wait.'
+        if not source.strip() and review.get('rating',0)<=3:
+            if re.search(r'thanks? (?:you )?for (?:the |your )?(?:one|two|three|[123])[- ]star',reply,re.I):
+                return 'Low-rating reply thanks the customer for a negative star score.'
+            if not re.search(r'\b(?:share|tell|contact|email|reach|feedback about|hear more)\b',reply,re.I):
+                return 'Low-rating reply needs a useful invitation to explain what went wrong.'
+        if assess(source,review.get('rating',0))=='complaint' and re.search(r'for (?:further )?(?:assistance|help)\b',reply,re.I) and not re.search(r'\b(?:look into|review|investigat\w*|understand|discuss|check)\b',reply,re.I):
+            return 'Complaint handoff does not explain how staff can review the concern.'
         approved_contacts=CONTACT.findall(contact)
         if approved_contacts and re.search(r'\b(?:contact|reach|email|e-mail|call|message)\b|published support details|usual contact channels',reply,re.I) and not any(value in reply for value in approved_contacts): return 'Reply uses a vague handoff instead of the approved contact.'
         if re.search(r'help (?:you )?(?:find|finding) (?:a |an )?(?:parking )?(?:spot|space)|reserve (?:you )?(?:a )?(?:parking )?(?:spot|space)',reply,re.I): return 'Reply offers unapproved parking assistance.'
@@ -97,6 +112,10 @@ For mixed feedback, acknowledge the downside as well as the positive. Never cher
 For genuine complaints, use the actual approved public contact from business.contact when a handoff is needed; do not write vague placeholders such as 'published support details'. If no contact is supplied, do not invent one.
 Do not offer parking help, reservations, replacements or any other service unless explicitly authorised in approved facts; when uncertain hold the reply. In complaints avoid 'you felt', 'if you felt' or redirecting a service complaint to ordinary product questions.
 Keep positive replies brief and specific. Rating-only thanks should be warm but make no assumptions about a visit or purchase. No obligatory question, sales pitch, emoji, or request for another review.
+Before writing, identify each concrete concern in the review; acknowledge it in the reply, including a long wait or an unresolved earlier complaint. 'No complaints were addressed' means an unresolved complaint, never praise. Avoid celebrating the star score when the text is negative.
+For one-to-three stars without a comment, acknowledge disappointment and invite the customer to share what went wrong through the approved contact. Never say 'thanks for the one-star rating'.
+A complaint handoff must give a purpose: ask the customer to contact the approved address so staff can look into the concern. Avoid empty 'for assistance' closings. Do not claim a referral, email or investigation already happened.
+Never say 'we noticed', 'we observed' or 'we confirmed' based solely on the customer's review. Use complete grammatical sentences. Personalise to the actual concern rather than merely echoing nouns from the review. Invite more detail only when it helps resolve a complaint; do not ask customers to publish private details.
 Write a fresh reply to the actual review. Do not copy an example or invent details to sound friendly. Safety and factual limits always take priority over casual tone.
 """
 

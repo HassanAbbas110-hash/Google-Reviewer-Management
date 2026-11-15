@@ -89,3 +89,21 @@ class DiagnosticTests(unittest.TestCase):
             def generate(self,*args):return {'risk':'complaint','reason':'Parking concern','reply':'Glad the advice helped! Thanks for visiting.'}
         result=generate_demo({'facts_approved':1,'model':'test','contact':''},AI(),'Parking was difficult.',4)
         self.assertIn('parking',result['reason'].lower());self.assertEqual(result['reply'],'');self.assertEqual(result['status'],'blocked')
+
+class ConversationTests(unittest.TestCase):
+    def check(self,source,rating,reply):
+        return validate_output({'risk':'complaint','reason':'Concern','reply':reply},'support@example.com',{'comment':source,'rating':rating})
+    def test_unaddressed_complaint_cannot_receive_praise(self):
+        self.assertFalse(self.check('No complaints were addressed by the shop.',5,'Thanks for the 5-star rating! We appreciate your positive feedback.'))
+    def test_claim_of_business_observation_is_blocked(self):
+        self.assertFalse(self.check('Checkout was slow.',5,'We noticed checkout was slow—let us know how we can improve.'))
+    def test_low_rating_needs_useful_handoff(self):
+        self.assertFalse(self.check('',1,'Thanks for the one-star rating. We appreciate your feedback.'))
+    def test_wait_complaint_cannot_omit_wait(self):
+        self.assertFalse(self.check('I waited half an hour and staff were rude.',2,'Sorry about your experience with staff. Please email support@example.com so the team can look into it.'))
+    def test_generic_assistance_is_not_investigation_handoff(self):
+        self.assertFalse(self.check('The drill stopped working.',2,'Sorry the drill stopped working. Please contact support@example.com for assistance.'))
+    def test_grounded_handoff_passes(self):
+        self.assertTrue(self.check('The drill stopped working.',2,'Sorry to hear the drill stopped working. Please email support@example.com so the team can look into the problem.'))
+    def test_awkward_observed_fragment_is_blocked(self):
+        self.assertFalse(self.check('Friendly people and tidy shop.',5,'Great to hear our friendly team and clean shop!'))

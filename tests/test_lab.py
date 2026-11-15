@@ -28,6 +28,9 @@ class LabTests(unittest.TestCase):
         run=self.lab.get(self.bid,rid)
         self.assertEqual(run['status'],'done');self.assertEqual(run['completed'],2)
         self.assertEqual(run['matches'],2);self.assertEqual(self.ai.calls,1)
+        self.assertIn('No owner action',run['results'][0]['handoff'])
+        self.assertIn('investigate',run['results'][1]['handoff'])
+        self.assertIn('no alert sent',run['results'][1]['handoff'])
         self.assertEqual(self.db.jobs(self.bid),[])
         with self.db.connect() as c:self.assertEqual(c.execute('SELECT COUNT(*) FROM events').fetchone()[0],0)
     def test_failure_is_visible_and_does_not_discard_later_cases(self):

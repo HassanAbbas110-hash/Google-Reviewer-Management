@@ -54,7 +54,7 @@ def csv_text(run):
         text=str(value if value is not None else '')
         return "'"+text if text.lstrip().startswith(('=','+','-','@')) else text
     output=io.StringIO(); writer=csv.writer(output)
-    fields=['id','rating','text','expected','risk','status','route_match','elapsed','reply','reason','error']
+    fields=['id','rating','text','expected','risk','status','route_match','elapsed','reply','reason','handoff','error']
     writer.writerow(fields)
     for row in run['results']: writer.writerow([safe(row.get(k,'')) for k in fields])
     return output.getvalue()
@@ -149,6 +149,14 @@ class LocalLab:
                         output=generate_demo(b,self.engine.ai,case['text'],case['rating'])
                     result.update(output)
                 except Exception as exc:result.update(status='error',risk='',reply='',reason='',error=friendly_error(exc))
+                if result.get('risk')=='sensitive':
+                    result['handoff']='Owner/staff must investigate and write the reply. Demo only; no alert sent.'
+                elif result.get('risk')=='complaint':
+                    result['handoff']='Owner/staff should review the concern and approve a grounded reply. Demo only; no alert sent.'
+                elif result.get('status') in ('blocked','error'):
+                    result['handoff']='Operator must inspect the failed draft before any use. Demo only; no alert sent.'
+                else:
+                    result['handoff']='No owner action indicated by this test; routine draft still needs quality review. Demo only; no alert sent.'
                 result['elapsed']=round(time.perf_counter()-began,1)
                 result['route_match']=(result.get('risk')==case['expected']) if case['expected'] and result['status']!='error' else False if case['expected'] else None
                 results.append(result)
