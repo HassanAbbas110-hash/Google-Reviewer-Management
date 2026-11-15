@@ -101,3 +101,13 @@ python -m compileall -q reviewer
 The regression suite covers isolation, consent, stale forms, first-sync baseline, duplicate events, ambiguous writes, changed reviews, retention, local-host/CSRF controls, secure backend selection, reconnection failure, notification delivery state and configuration recovery. See `docs/PILOT_CHECKLIST.md` for live acceptance work.
 
 Sources: [Google review API](https://developers.google.com/my-business/content/review-data), [desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app), [Google policies](https://developers.google.com/my-business/content/policies), [Ollama API](https://github.com/ollama/ollama/blob/main/docs/api.md).
+
+## Local test lab and consolidated update
+
+No Google Business Profile is needed for local testing. Open a business, approve its fictional facts, select an installed local Ollama model, then open **Local test lab**. Start with the quick eight cases; the full 24-case routing regression may take many minutes on a CPU laptop. Completed cases are saved, cancellation waits for the current model call, and interrupted runs can resume while the approved facts remain unchanged. Changed facts require a new run. CSV/JSON exports contain fictional review text and generated replies; local runs expire after 29 days.
+
+Routing matches measure only these labelled examples. They do not certify tone, grounding, general accuracy, or readiness for automatic publishing. Review the actual replies, including mixed reviews and unsupported promises. Errors and blocked replies remain visible. Local evaluation never calls Google, sends owner emails, or changes publishing consent.
+
+For an existing Windows installation, close the running app terminal. Extract the consolidated update, place `Update-App.cmd` and `app-update` beside `Start.cmd`, then run `Update-App.cmd`. It verifies the complete code payload before replacing files, backs up replaced code, and preserves the database, credential store, and Ollama models. Run `Start.cmd` afterwards and refresh the browser. Keep the `app-update` folder with the command; do not combine older patch folders. SHA256 checks detect accidental corruption, not authenticity: obtain the archive from the trusted project source.
+
+Current local validation uses mocked model/network responses. Real Ollama quality and speed, Windows installer execution, real SMTP delivery, Google authorisation and publishing still require their respective environment checks. A real owner-authorised Google Business Profile is required only when beginning the Google integration pilot; do not create a fictional listing for tests.

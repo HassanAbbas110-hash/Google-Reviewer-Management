@@ -46,13 +46,17 @@ def validate_output(output,contact,review=None):
         if PARKING_CONCERN.search(source) and not re.search(r'\bpark(?:ing)?\b',reply,re.I): return False
         approved_contacts=CONTACT.findall(contact)
         if approved_contacts and re.search(r'\b(?:contact|reach|email|e-mail|call|message)\b|published support details|usual contact channels',reply,re.I) and not any(value in reply for value in approved_contacts): return False
+        if re.search(r'help (?:you )?(?:find|finding) (?:a |an )?(?:parking )?(?:spot|space)|reserve (?:you )?(?:a )?(?:parking )?(?:spot|space)',reply,re.I): return False
+        if assess(source,review.get('rating',0))!='routine':
+            if re.search(r'\b(?:you felt|you feel|if you felt|if you feel|felt the staff|felt our staff)\b',reply,re.I): return False
+            if re.search(r'\b(?:rude|wait|service)\b',source,re.I) and re.search(r'for help with .{0,40}questions',reply,re.I): return False
         # Acknowledge a reported concern; do not repeat it as a verified incident.
         if re.search(r'rudeness (?:you (?:encountered|experienced)|of our staff)|our rude staff|we (?:are|were) rude|(?:were|was|been) (?:treated|spoken to) rudely|our staff treated you rudely',reply,re.I): return False
     return True
 
 
 REPLY_INSTRUCTIONS = """You write public review replies for the business in the final user message.
-First classify the ACTUAL customer review, then draft the reply. Return only the JSON schema.
+First classify the ACTUAL customer review, then draft the reply. Return only the JSON schema. The reason is a short evidence note of at most 12 words and 160 characters, never a policy explanation or reasoning trace.
 
 CLASSIFICATION:
 - routine: ordinary positive feedback, including a four/five-star rating without written text.
@@ -83,6 +87,7 @@ Use the requested business tone. For a friendly shop, be warm, relaxed and conve
 Avoid stock openings and closings such as 'Thank you for your kind feedback', 'We appreciate your support', 'We take all concerns seriously', and 'regarding your concerns'. Do not repeat a fixed opening for every review. Start with the detail that matters in this review.
 For mixed feedback, acknowledge the downside as well as the positive. Never cherry-pick praise or let five stars hide a safety issue.
 For genuine complaints, use the actual approved public contact from business.contact when a handoff is needed; do not write vague placeholders such as 'published support details'. If no contact is supplied, do not invent one.
+Do not offer parking help, reservations, replacements or any other service unless explicitly authorised in approved facts; when uncertain hold the reply. In complaints avoid 'you felt', 'if you felt' or redirecting a service complaint to ordinary product questions.
 Keep positive replies brief and specific. Rating-only thanks should be warm but make no assumptions about a visit or purchase. No obligatory question, sales pitch, emoji, or request for another review.
 Write a fresh reply to the actual review. Do not copy an example or invent details to sound friendly. Safety and factual limits always take priority over casual tone.
 """
@@ -102,12 +107,12 @@ class Ollama:
         if model not in self.models(): raise ValueError('Selected local model is not installed')
         schema={'type':'object','properties':{
             'risk':{'type':'string','enum':['routine','complaint','sensitive'],'description':'Classify only the actual customer review and rating, never business policies or examples.'},
-            'reason':{'type':'string','description':'Brief evidence from this review that agrees with the selected risk.'},
-            'reply':{'type':'string','description':'Concise public draft grounded only in the review and approved facts.'}},
+            'reason':{'type':'string','maxLength':160,'description':'Brief evidence from this review that agrees with the selected risk.'},
+            'reply':{'type':'string','maxLength':800,'description':'Concise public draft grounded only in the review and approved facts.'}},
             'required':['risk','reason','reply'],'additionalProperties':False}
         system=REPLY_INSTRUCTIONS
         context={k:business[k] for k in ('name','facts','contact','tone','language')}
-        payload={'model':model,'stream':False,'format':schema,'options':{'temperature':0.2,'num_predict':500},'messages':[{'role':'system','content':system},{'role':'user','content':json.dumps({'business':context,'review':review},ensure_ascii=False)}]}
+        payload={'model':model,'stream':False,'format':schema,'options':{'temperature':0.2,'num_predict':280},'messages':[{'role':'system','content':system},{'role':'user','content':json.dumps({'business':context,'review':review},ensure_ascii=False)}]}
         # Qwen3 hybrid models support this native API flag; short replies do not need reasoning traces.
         if model.split(':',1)[0]=='qwen3': payload['think']=False
         r=self.session.post('http://127.0.0.1:11434/api/chat',json=payload,timeout=(5,180)); r.raise_for_status()

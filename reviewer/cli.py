@@ -63,7 +63,7 @@ def main():
     parser=argparse.ArgumentParser(description='WebRift local Google Review Manager')
     parser.add_argument('--data',default='data',help='Private local data directory')
     sub=parser.add_subparsers(dest='command',required=True)
-    serve=sub.add_parser('serve'); serve.add_argument('--port',type=int,default=8765)
+    serve=sub.add_parser('serve'); serve.add_argument('--port',type=int,default=8765); serve.add_argument('--open-browser',action='store_true')
     connect=sub.add_parser('connect'); connect.add_argument('business',type=int); connect.add_argument('--client',default='credentials.json')
     sub.add_parser('doctor')
     smtp=sub.add_parser('smtp')
@@ -103,7 +103,7 @@ def main():
                 return
             from reviewer.web import create_app
             from werkzeug.serving import make_server
-            engine=Engine(db,google,ai); app=create_app(db,engine)
+            engine=Engine(db,google,ai); app=create_app(db,engine,background=True)
             stopped=threading.Event()
             def worker():
                 while not stopped.is_set():
@@ -120,8 +120,11 @@ def main():
             print('WebRift Review Manager: http://127.0.0.1:'+str(args.port))
             print('Keep this window open. Close it before running the Google connect command.')
             thread.start()
+            if args.open_browser:
+                import webbrowser
+                webbrowser.open('http://127.0.0.1:'+str(args.port))
             try: server.serve_forever()
             except KeyboardInterrupt: pass
-            finally: stopped.set(); server.server_close()
+            finally: stopped.set(); app.extensions['local_lab'].stop(); server.server_close()
     except (ValueError,FileNotFoundError) as exc: parser.exit(1,str(exc)+'\n')
     except Exception as exc: parser.exit(1,'Operation failed ('+type(exc).__name__+'). Check Google access, installed dependencies and secure credential storage.\n')
