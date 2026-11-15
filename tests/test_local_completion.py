@@ -75,3 +75,17 @@ class CompletionTests(unittest.TestCase):
             self.assertEqual(run['status'],'interrupted');self.assertEqual(run['completed'],0)
 
 if __name__=='__main__':unittest.main()
+
+class DiagnosticTests(unittest.TestCase):
+    def test_observed_apology_confirms_rude_service(self):
+        out={'risk':'complaint','reason':'Wait and service','reply':'We apologize for the long wait and rude service. Please contact support@example.com for help.'}
+        self.assertFalse(validate_output(out,'support@example.com',{'comment':'Staff were rude','rating':2}))
+    def test_reported_concern_is_allowed(self):
+        out={'risk':'complaint','reason':'Service concern','reply':'Sorry to hear about your concerns about rude service. Please email support@example.com so the team can look into what happened.'}
+        self.assertTrue(validate_output(out,'support@example.com',{'comment':'Staff were rude','rating':2}))
+    def test_parking_rejection_has_specific_safe_diagnostic(self):
+        from reviewer.demo import generate_demo
+        class AI:
+            def generate(self,*args):return {'risk':'complaint','reason':'Parking concern','reply':'Glad the advice helped! Thanks for visiting.'}
+        result=generate_demo({'facts_approved':1,'model':'test','contact':''},AI(),'Parking was difficult.',4)
+        self.assertIn('parking',result['reason'].lower());self.assertEqual(result['reply'],'');self.assertEqual(result['status'],'blocked')

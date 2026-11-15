@@ -1,5 +1,5 @@
 """Ephemeral local-model tests. No Google adapter, database writes or alerts."""
-from reviewer.ai import assess,validate_output,combine_risk
+from reviewer.ai import assess,validation_error,combine_risk
 
 SAMPLES={
  'praise':{'title':'Happy customer','rating':5,'text':'The team helped me find the right tools for my project. Friendly service and a clean shop. Thank you!'},
@@ -19,6 +19,7 @@ def generate_demo(business,ai,text,rating):
         return {'risk':risk,'reply':'','reason':'Sensitive content: the live workflow would hold this for a staff-written reply and investigation. No AI reply was generated.','status':'held'}
     output=ai.generate(business,{'comment':text,'rating':rating})
     risk=combine_risk(risk,output)
-    if not validate_output(output,business['contact'],{'comment':text,'rating':rating}):
-        return {'risk':risk,'reply':'','reason':'The local model output failed validation. No reply is usable yet. Try again or evaluate a stronger local model.','status':'blocked'}
+    failure=validation_error(output,business['contact'],{'comment':text,'rating':rating})
+    if failure:
+        return {'risk':risk,'reply':'','reason':'Blocked: '+failure+' No usable reply was saved.','status':'blocked'}
     return {'risk':risk,'reply':output['reply'],'reason':output['reason'],'status':'draft'}
