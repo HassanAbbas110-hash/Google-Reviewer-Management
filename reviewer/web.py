@@ -31,7 +31,9 @@ def create_app(db,engine):
         response.headers['Content-Security-Policy']="default-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
         response.headers['X-Content-Type-Options']='nosniff'
         response.headers['Cache-Control']='no-store'
-        response.headers['Referrer-Policy']='no-referrer'
+        # no-referrer makes Chromium form POSTs send Origin: null.
+        # same-origin preserves local form origin while hiding external referrers.
+        response.headers['Referrer-Policy']='same-origin'
         return response
     @app.errorhandler(ValueError)
     def invalid(error): return render_template('message.html',message=str(error)),400
