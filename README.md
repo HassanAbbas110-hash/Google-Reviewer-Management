@@ -1,28 +1,95 @@
-# Google Reviewer Management
+# WebRift Google Reviewer Management
 
-WebRift's local-first Google review manager. One installation, separate business settings. No paid AI service or hosting is required for the planned local version.
+Local-first Google review management for multiple businesses. Runs on your computer using the free Google Business Profile API and an installed local Ollama model. No paid hosting or paid AI provider is configured.
 
-## Current status
+## Status — local pilot application
 
-Initial processing foundation only. Google OAuth, live review polling/publishing, Ollama generation, website extraction, dashboard, alerts and reporting are **not implemented yet**. No live Google replies are sent by this version.
+Implemented: business settings, Google desktop OAuth and location selection, paginated polling, local AI generation, conservative publication controls, approval inbox, duplicate/edited-review handling, uncertain-write reconciliation, investigation tracking, optional SMTP alerts, website text extraction, Google review QR, monthly **application activity** report, configuration backup/restore and Windows launch scripts.
 
-Run tests with Python 3.11+:
+**Not live-verified:** a real Google account, API approval, actual local-model quality, Windows credential storage and native Windows execution. The test suite uses fixtures at the Google/AI boundary; it does not prove Google accepted a real reply. There is no installed Ollama model in the development workspace. Automatic publishing is disabled by default and needs a reviewed pilot.
+
+This is a single-operator local app, not a public multiuser SaaS. Never expose its port or deploy it publicly without redesigning authentication and access controls. Neither power nor internet is free, and the computer must stay awake for processing.
+
+## Windows quick start
+
+1. Install Python 3.11+ from [python.org](https://www.python.org/downloads/).
+2. Clone this repository in GitHub Desktop into `Google Reviewer Management`.
+3. Double-click `Setup.cmd`. It creates a virtual environment, installs dependencies and runs the tests. Internet is needed for installation.
+4. Double-click `Start.cmd`. Open `http://127.0.0.1:8765` if the browser does not load immediately. Keep the terminal window open.
+5. Add a business. Save verified facts, a public complaints contact and desired tone. Do not add private customer records.
+
+No Google credentials are needed just to open the dashboard. `Start.cmd` runs the scheduler together with the dashboard; installing a separate scheduled task is unnecessary. Closing the app stops processing.
+
+For terminal commands on Windows, use `.venv\Scripts\python.exe` instead of plain `python` below. On macOS/Linux, create a venv, install `requirements.txt`, then use `.venv/bin/python`.
+
+## Local AI setup
+
+Install Ollama from [ollama.com](https://ollama.com/download). Choose an appropriately licensed local model that fits your computer's RAM/GPU; no specific model is downloaded automatically. Check its commercial-use licence and test its replies before using it for customers.
+
+Run `ollama list` to see installed model names. Enter the exact name in the dashboard's model field. The adapter only contacts `127.0.0.1:11434` and rejects advertised cloud models. Do not configure Ollama cloud routing for this no-paid-API setup.
+
+```powershell
+python -m reviewer doctor
+```
+
+The doctor checks the local credential store and Ollama, without exposing tokens. If your OS has no supported secure credential backend, connection fails rather than storing plaintext tokens. Supported backends: Windows Credential Manager, macOS Keychain, Linux Secret Service/KWallet. Linux chained backends are rejected; configure an explicitly supported secure backend.
+
+## Google setup — required before live polling/posting
+
+1. Obtain Google Business Profile API access for WebRift's project. [Google prerequisites](https://developers.google.com/my-business/content/prereqs). Approval is not guaranteed by this application.
+2. Enable Business Profile review access, Account Management API and Business Information API as required by your Google project.
+3. Configure Google's OAuth consent screen and a **Desktop app** OAuth client. Add test users while the OAuth app is in Testing; Google may require verification for production use. Testing-mode offline tokens can expire and require reconnection.
+4. Download the Desktop app JSON to `credentials.json` in your local project folder. This filename is ignored by Git. Never upload it or tokens to GitHub.
+5. Add the business in the dashboard and note its numeric ID from the URL. Close the app before connecting, so two processes cannot operate on the same data.
+6. Run:
+
+```powershell
+python -m reviewer connect 1 --client credentials.json
+```
+
+Google opens in your browser. The authorised owner/manager signs in and grants access. Select the matching business location in the terminal. Reconnecting deliberately disables previous automation and consent first, even if the connection attempt fails.
+
+7. Restart `Start.cmd`. The first successful complete sync establishes a baseline: historical reviews are not automatically answered. Reviews created more than 29 days ago are excluded from this pilot.
+8. Check and approve the business facts. Record the owner's **specific express consent** for review replies; Google OAuth alone does not represent that business agreement. Leave automatic publishing off during the pilot.
+9. Fetch reviews, generate drafts and review them. Reviewers' text is untrusted input. Test 100 representative reviews and your real-business workflow before marking the pilot verified.
+10. Enable routine automatic replies only after this review. Low ratings, complaints and sensitive content remain held for staff; serious cases may require a staff-written reply.
+
+The server checks for due work every 30 seconds and polls Google every 30 minutes. Timing is approximate. Failure to poll does not constitute successful handling. Existing human replies are preserved. Changed reviews/facts invalidate stale approvals. Google does not provide an atomic compare-and-set for owner replies, so a staff edit in the tiny interval between the preflight read and PUT remains a platform race; coordinate editing during the pilot.
+
+## Complaints and owner alerts
+
+The inbox shows `investigation: open`. Publishing an acknowledgement never resolves the investigation. Staff explicitly mark it resolved after checking the incident.
+
+Optional owner emails use your existing SMTP provider, with its charges/limits. They contain no review text or customer details. Set the owner's email in publishing controls and configure SMTP over TLS:
+
+```powershell
+python -m reviewer smtp --host YOUR_SMTP_HOST --sender YOUR_SENDER_EMAIL --user YOUR_SMTP_USERNAME
+```
+
+Enter the SMTP app password at the private prompt. It is stored in the OS credential store. Never paste it into source code. Alerts retry up to three times; delivery failures remain visible. A sent SMTP message is not proof the owner read it. Without SMTP setup, alerts are dashboard-only.
+
+## Reports and retention
+
+The monthly page counts **this application's operational events**: replies published, investigation cases opened, approval events and failed processing events. It uses UTC calendar months and can be printed to PDF. It is not a Google rating analysis, a competitor report or a complete count of all reviews. Repeat approval events can occur when content changes. No automatic monthly email is configured.
+
+Google review content and associated drafts are deleted after 29 days from first local ingestion, using SQLite secure deletion. Purge runs in the active worker and when opening inbox pages. An offline app cannot run cleanup until restarted; protect the local data folder with device encryption and do not back it up wholesale. Old reviews are not re-imported after expiry. Operational events contain only the business ID, timestamp and action; they expire after 400 days. Review [Google's current content storage rules](https://developers.google.com/my-business/content/policies) before commercial activation; this software does not certify policy compliance.
+
+Back up **configuration only**, without Google content or tokens:
+
+```powershell
+python -m reviewer backup data\business-settings-backup.json
+python -m reviewer restore data\business-settings-backup.json
+```
+
+Backup paths must not already exist. Restore adds businesses with consent, facts approval and automatic posting disabled; reconnect and approve again. Protect backups because contacts and business policies are included. No recoverable review history is promised after deletion.
+
+## Development and verification
 
 ```powershell
 python -m unittest discover -s tests -v
+python -m compileall -q reviewer
 ```
 
-Do not commit credentials, business data, tokens or local databases. Production activation requires Google API approval, owner consent, model evaluation and live pilot verification. This folder was prepared in the remote workspace, not on the owner's laptop.
+The regression suite covers isolation, consent, stale forms, first-sync baseline, duplicate events, ambiguous writes, changed reviews, retention, local-host/CSRF controls, secure backend selection, reconnection failure, notification delivery state and configuration recovery. See `docs/PILOT_CHECKLIST.md` for live acceptance work.
 
-## Laptop setup once GitHub repository exists
-
-In GitHub Desktop select File > Clone repository, select the new repository, and choose a local path ending in `Google Reviewer Management`. Alternatively extract the supplied project archive into that folder. The archive contains no credentials or client data.
-
-## Roadmap
-
-1. Durable business-isolated review queue and explicit publishing safeguards.
-2. Google desktop OAuth, location selection, paginated review polling, reconnection.
-3. Local Ollama structured generation and conservative escalation.
-4. Local dashboard, approved business facts, owner controls.
-5. Website extraction with private-network blocking; summaries, alerts, backups and retention.
-6. Pilot in approval mode, then explicitly enable routine automatic publishing.
+Sources: [Google review API](https://developers.google.com/my-business/content/review-data), [desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app), [Google policies](https://developers.google.com/my-business/content/policies), [Ollama API](https://github.com/ollama/ollama/blob/main/docs/api.md).

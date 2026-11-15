@@ -7,3 +7,7 @@ credentials*.json
 token*.json
 *.db
 *.db-*
+
+.env.*
+!.env.example
+*.log

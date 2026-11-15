@@ -25,10 +25,10 @@
 ## Task 1: Durable queue and publication policy
 Files: reviewer/core.py; tests/test_core.py.
 Interfaces: Store(path).ingest(business_id, review_id, text, rating, existing_reply='') -> state; Store.get(business_id, review_id) -> dict; decision(consent, facts_approved, auto_enabled, risk, valid, existing_reply='') -> str.
-- [ ] Write tests for duplicate ingestion, tenant isolation, revision invalidation, human-reply preservation, restart persistence, missing consent/facts and sensitive output.
-- [ ] Run `python -m unittest discover -s tests -v`; observe failure before implementation.
-- [ ] Implement SQLite ingestion transaction and fail-closed decision function.
-- [ ] Run full suite; expected all passing; inspect diff and commit.
+- [x] Write tests for duplicate ingestion, tenant isolation, revision invalidation, human-reply preservation, restart persistence, missing consent/facts and sensitive output.
+- [x] Run `python -m unittest discover -s tests -v`; observe failure before implementation.
+- [x] Implement SQLite ingestion transaction and fail-closed decision function.
+- [x] Run full suite; expected all passing; inspect diff and commit.
 
 ## Task 2: Google adapter
 - [ ] Read current official OAuth/review API and content-retention documentation.
@@ -51,3 +51,6 @@ Interfaces: Store(path).ingest(business_id, review_id, text, rating, existing_re
 - [ ] Verify actual Google roundtrip with owner-authorised pilot; no tests post to real clients by default.
 - [ ] Document hardware/Google prerequisites, Windows startup, restore and operating limits.
 - [ ] Enable automatic publishing only following recorded pilot review and explicit business consent.
+
+## Execution checkpoint
+Local app, adapters, dashboard, optional SMTP, operational reports and recovery implemented. 42 tests pass. Real Google/Ollama/Windows verification and 100-review model evaluation remain unchecked; see ../../PILOT_CHECKLIST.md.
