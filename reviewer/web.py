@@ -10,7 +10,7 @@ from reviewer.website import extract
 
 
 def create_app(db,engine,background=False):
-    from reviewer.lab import LocalLab,REGRESSION_CASES,csv_text
+    from reviewer.lab import LocalLab,REGRESSION_CASES,CHALLENGE_CASES,csv_text
     lab=LocalLab(db,engine)
     app=Flask(__name__)
     app.extensions['local_lab']=lab
@@ -137,7 +137,9 @@ def create_app(db,engine,background=False):
     def lab_start(bid):
         business(bid)
         if request.form.get('suite'):
-            cases=REGRESSION_CASES if request.form['suite']=='full' else [REGRESSION_CASES[i] for i in (0,2,8,10,16,20,22,4)]
+            suites={'full':REGRESSION_CASES,'challenge':CHALLENGE_CASES,'quick':[REGRESSION_CASES[i] for i in (0,2,8,10,16,20,22,4)]}
+            if request.form['suite'] not in suites:raise ValueError('Unknown test suite.')
+            cases=suites[request.form['suite']]
         elif request.form.get('preset'):
             from reviewer.demo import SAMPLES
             sample=SAMPLES.get(request.form['preset'])

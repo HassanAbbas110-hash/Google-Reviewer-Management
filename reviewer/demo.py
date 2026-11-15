@@ -1,5 +1,5 @@
 """Ephemeral local-model tests. No Google adapter, database writes or alerts."""
-from reviewer.ai import assess,validation_error,combine_risk
+from reviewer.ai import generate_checked
 
 SAMPLES={
  'praise':{'title':'Happy customer','rating':5,'text':'The team helped me find the right tools for my project. Friendly service and a clean shop. Thank you!'},
@@ -14,12 +14,4 @@ def generate_demo(business,ai,text,rating):
     if not business['model']: raise ValueError('Save an installed local Ollama model name in business settings first.')
     if type(rating) is not int or not 1<=rating<=5: raise ValueError('Choose a rating from 1 to 5.')
     if not isinstance(text,str) or len(text)>6000: raise ValueError('Sample review must be at most 6,000 characters.')
-    risk=assess(text,rating)
-    if risk=='sensitive':
-        return {'risk':risk,'reply':'','reason':'Sensitive content: the live workflow would hold this for a staff-written reply and investigation. No AI reply was generated.','status':'held'}
-    output=ai.generate(business,{'comment':text,'rating':rating})
-    risk=combine_risk(risk,output)
-    failure=validation_error(output,business['contact'],{'comment':text,'rating':rating})
-    if failure:
-        return {'risk':risk,'reply':'','reason':'Blocked: '+failure+' No usable reply was saved.','status':'blocked'}
-    return {'risk':risk,'reply':output['reply'],'reason':output['reason'],'status':'draft'}
+    return generate_checked(ai,business,{'comment':text,'rating':rating})

@@ -107,3 +107,81 @@ class ConversationTests(unittest.TestCase):
         self.assertTrue(self.check('The drill stopped working.',2,'Sorry to hear the drill stopped working. Please email support@example.com so the team can look into the problem.'))
     def test_awkward_observed_fragment_is_blocked(self):
         self.assertFalse(self.check('Friendly people and tidy shop.',5,'Great to hear our friendly team and clean shop!'))
+
+class RepairTests(unittest.TestCase):
+    def business(self):return dict(facts_approved=1,model='test',contact='support@example.com')
+    def test_one_repair_validated_and_recorded(self):
+        from reviewer.demo import generate_demo
+        class AI:
+            calls=0
+            def generate(self,*args):return {'risk':'routine','reply':'Thanks for your positive feedback!','reason':'Praise'}
+            def repair(self,b,r,failure):
+                self.calls+=1
+                return {'risk':'routine','reply':'Sorry your complaint remains unresolved. Please email support@example.com so the team can look into it.','reason':'Unresolved complaint'}
+        ai=AI();out=generate_demo(self.business(),ai,'No complaints were addressed by the shop.',5)
+        self.assertEqual(out['status'],'draft');self.assertEqual(out['risk'],'complaint');self.assertEqual(out['generation_attempts'],2);self.assertEqual(ai.calls,1);self.assertTrue(out['repaired'])
+    def test_second_invalid_output_stays_blocked_no_loop(self):
+        from reviewer.demo import generate_demo
+        class AI:
+            calls=0
+            def generate(self,*args):return {'risk':'routine','reply':'Thanks for the positive feedback!','reason':'Praise'}
+            def repair(self,*args):self.calls+=1;return self.generate()
+        ai=AI();out=generate_demo(self.business(),ai,'No complaints were addressed by the shop.',5)
+        self.assertEqual(out['status'],'blocked');self.assertEqual(ai.calls,1);self.assertEqual(out['reply'],'')
+    def test_model_sensitive_escalation_cannot_be_repaired_away(self):
+        from reviewer.demo import generate_demo
+        class AI:
+            def generate(self,*args):return {'risk':'sensitive','reply':'A safe looking reply here.','reason':'Potential serious concern'}
+            def repair(self,*args):raise AssertionError('Sensitive output must not be repaired')
+        out=generate_demo(self.business(),AI(),'Something went wrong.',4)
+        self.assertEqual(out['status'],'held');self.assertEqual(out['reply'],'')
+    def test_repair_exception_stays_held_without_error_leak(self):
+        from reviewer.demo import generate_demo
+        class AI:
+            def generate(self,*args):return {'risk':'complaint','reply':'Thanks for your positive feedback!','reason':'Praise'}
+            def repair(self,*args):raise RuntimeError('PRIVATE')
+        out=generate_demo(self.business(),AI(),'No complaints were addressed by the shop.',5)
+        self.assertEqual(out['status'],'blocked');self.assertNotIn('PRIVATE',str(out));self.assertEqual(out['risk'],'complaint')
+    def test_reversed_thanks_blocked(self):
+        self.assertFalse(validate_output({'risk':'routine','reply':'Thanks for the great chocolate and friendly service!','reason':'Praise'},'',{'comment':'Great chocolate and friendly service.','rating':5}))
+    def test_mixed_complaint_does_not_celebrate_stars_or_promise_fix(self):
+        out={'risk':'complaint','reply':'Thanks for the 5-star rating! Please email support@example.com so we can fix this.','reason':'Slow checkout'}
+        self.assertFalse(validate_output(out,'support@example.com',{'comment':'Checkout was slow.','rating':5}))
+
+class RepairIntegrationTests(unittest.TestCase):
+    def test_repair_request_keeps_original_review_and_local_endpoint(self):
+        ai=Ollama();calls=[]
+        class Response:
+            def raise_for_status(self):pass
+            def json(self):return {'message':{'content':'{"risk":"complaint","reason":"Reported concern","reply":"Sorry to hear about the issue. Please email support@example.com so the team can look into it."}'}}
+        def post(url,**kwargs):calls.append((url,kwargs['json']));return Response()
+        b=dict(name='Shop',facts='Tools',contact='support@example.com',tone='Warm',language='English',model='qwen3:4b')
+        with patch.object(ai,'models',return_value=['qwen3:4b']),patch.object(ai.session,'post',side_effect=post):
+            ai.repair(b,{'comment':'Wrong screws','rating':2},'Reply ignores the concern.')
+        self.assertEqual(calls[0][0],'http://127.0.0.1:11434/api/chat')
+        self.assertFalse(calls[0][1]['think']);self.assertIn('REPAIR:',calls[0][1]['messages'][0]['content'])
+        self.assertEqual(json.loads(calls[0][1]['messages'][1]['content'])['review']['comment'],'Wrong screws')
+    def test_live_engine_uses_repair_without_publishing_complaint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db=Database(Path(tmp)/'db');bid=db.save_business(dict(name='Shop',model='test',contact='support@example.com'));db.update_settings(bid,facts_approved=1)
+            jid=db.ingest(bid,{'name':'accounts/a/locations/b/reviews/c','starRating':'FIVE','comment':'No complaints were addressed by the shop.'})
+            class AI:
+                def generate(self,*args):return {'risk':'routine','reason':'Praise','reply':'Thanks for your positive feedback!'}
+                def repair(self,*args):return {'risk':'routine','reason':'Unresolved complaint','reply':'Sorry your complaint remains unresolved. Please email support@example.com so the team can look into it.'}
+            engine=Engine(db,None,AI());engine.process(bid,jid)
+            job=db.job(bid,jid);self.assertEqual(job['status'],'needs_approval');self.assertEqual(job['risk'],'complaint');self.assertEqual(job['investigation'],'open');self.assertIn('unresolved',job['draft'])
+
+class RepairEscalationTests(unittest.TestCase):
+    def test_first_model_complaint_warning_survives_routine_repair(self):
+        from reviewer.ai import generate_checked
+        class AI:
+            def generate(self,*args):return {'risk':'complaint','reply':'<invalid>','reason':'Concern'}
+            def repair(self,*args):return {'risk':'routine','reply':'Glad the tools helped!','reason':'Praise'}
+        result=generate_checked(AI(),{'contact':''},{'comment':'Great tools','rating':5})
+        self.assertEqual(result['risk'],'complaint');self.assertEqual(result['generation_attempts'],2)
+    def test_sensitive_input_never_calls_model(self):
+        from reviewer.ai import generate_checked
+        class AI:
+            def generate(self,*args):raise AssertionError('Safety hold must precede model generation')
+        result=generate_checked(AI(),{'contact':''},{'comment':'The battery caught fire','rating':5})
+        self.assertEqual(result['status'],'held');self.assertEqual(result['generation_attempts'],0)

@@ -41,7 +41,7 @@ class ReplyQualityTests(unittest.TestCase):
         class CautiousAI:
             def generate(self,*args): return {'reply':'We appreciate your experience with our products.','risk':'sensitive','reason':'Potential uncertainty'}
         result=generate_demo({'facts_approved':1,'model':'local:test','contact':''},CautiousAI(),'',5)
-        self.assertEqual(result['status'],'blocked')
+        self.assertEqual(result['status'],'held')
         self.assertEqual(result['risk'],'sensitive')
     def test_sensitive_warning_survives_rejected_live_wording(self):
         import tempfile
