@@ -108,5 +108,7 @@ class Ollama:
         system=REPLY_INSTRUCTIONS
         context={k:business[k] for k in ('name','facts','contact','tone','language')}
         payload={'model':model,'stream':False,'format':schema,'options':{'temperature':0.2,'num_predict':500},'messages':[{'role':'system','content':system},{'role':'user','content':json.dumps({'business':context,'review':review},ensure_ascii=False)}]}
+        # Qwen3 hybrid models support this native API flag; short replies do not need reasoning traces.
+        if model.split(':',1)[0]=='qwen3': payload['think']=False
         r=self.session.post('http://127.0.0.1:11434/api/chat',json=payload,timeout=(5,180)); r.raise_for_status()
         return json.loads(r.json()['message']['content'])
