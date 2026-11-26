@@ -40,7 +40,7 @@
       {% if j.issues_soft %}<div class="notice"><b>Style:</b> {{ j.issues_soft }}</div>{% endif %}
       {% if j.status != 'baseline' %}
       <form method="post" action="/business/{{ b.id }}/review/{{ j.id }}/approve" class="reply-form">
-        {{ hidden() }}<input type="hidden" name="fingerprint" value="{{ j.fingerprint }}">
+        {{ hidden() }}<input type="hidden" name="next" value="/inbox?business={{ b.id }}"><input type="hidden" name="fingerprint" value="{{ j.fingerprint }}">
         <textarea name="reply" rows="4" maxlength="4000" placeholder="Write the public reply here.">{{ j.draft }}</textarea>
         <small>Write as the business. One or two plain sentences. Only use contact details listed for {{ b.name }}: {{ b.contact or 'none approved yet' }}.</small>
         <label class="check"><input type="checkbox" name="confirm_commitments"> If this reply promises a refund, replacement or other remedy, the owner agreed to it.</label>
@@ -49,7 +49,12 @@
             <span class="pill st-approved">Approved</span>
             <button formaction="/business/{{ b.id }}/review/{{ j.id }}/save" class="secondary">Save changes (needs re-approval)</button>
           {% else %}
+            {% if b.publish_mode != 'off' %}
+            <button formaction="/business/{{ b.id }}/review/{{ j.id }}/approve-publish">Approve &amp; publish</button>
+            <button class="secondary">Approve only</button>
+            {% else %}
             <button>Approve this reply</button>
+            {% endif %}
             <button formaction="/business/{{ b.id }}/review/{{ j.id }}/save" class="secondary">Save without approving</button>
           {% endif %}
         </div>

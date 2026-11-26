@@ -16,7 +16,7 @@ from reviewer.ai import make_draft, check_staff_reply, friendly_error
 from reviewer.database import fingerprint, RATINGS
 from reviewer.google import GoogleError
 from reviewer.mock_google import MockGoogle
-from reviewer.policy import classify, route, publish_blockers
+from reviewer.policy import classify, route, publish_blockers, AUTO_MODES
 from reviewer.text import digest
 
 POLL_SECONDS = 1800
@@ -186,12 +186,51 @@ class Engine:
 
     def _auto_ready(self, bid, jid):
         b, j = self._business(bid), self.db.job(bid, jid)
-        if b['publish_mode'] != 'auto' or j['issues_soft'] or j['issues_hard']:
+        if b['publish_mode'] not in AUTO_MODES or j['issues_soft'] or j['issues_hard']:
             return False
         trial = dict(j, status='approved', approved_hash=digest(j['draft']), approved_fingerprint=j['fingerprint'],
                      approved_version=b['version'])
-        return not publish_blockers(b, trial, paused=self.db.setting('paused') == '1', automatic=True,
-                                    staff_approvals=self.db.count_actions(bid, 'Approved'))
+        return not publish_blockers(b, trial, paused=self.db.setting('paused') == '1', automatic=True)
+
+    def publish_waiting_auto(self):
+        """Send auto-approved replies that were held back (e.g. by Google's per-minute limit)."""
+        for b in self.db.businesses():
+            if b['publish_mode'] not in AUTO_MODES:
+                continue
+            for j in self.db.jobs(b['id'], statuses=('approved',)):
+                if j['approved_by'] == 'automatic' and not j['error']:
+                    try:
+                        self.publish(b['id'], j['id'], 'automatic', expected_hash=j['approved_hash'], automatic=True)
+                    except (PublishBlocked, ValueError, GoogleError):
+                        pass
+
+    def ready_to_send(self, bid=None):
+        """Drafts a person can send in one go: clean checks, not sensitive or unclear."""
+        return [j for j in self.db.jobs(bid, statuses=('needs_review',))
+                if (j['draft'] or '').strip() and not j['issues_hard'] and not j['issues_soft']
+                and j['category'] not in ('sensitive', 'uncertain', '')]
+
+    def approve_and_publish(self, bid, jid, actor, *, expected_fingerprint, expected_hash, confirm_commitments=False):
+        self.approve(bid, jid, actor, expected_fingerprint=expected_fingerprint, expected_hash=expected_hash,
+                     confirm_commitments=confirm_commitments)
+        j = self.db.job(bid, jid)
+        return self.publish(bid, jid, actor, expected_hash=j['approved_hash'])
+
+    def publish_all_ready(self, actor, bid=None):
+        """One click for staff: approve and send every clean draft where publishing is on."""
+        sent, skipped = 0, []
+        for j in self.ready_to_send(bid):
+            b = self._business(j['business_id'])
+            if b['publish_mode'] == 'off':
+                skipped.append(f"{b['name']}: publishing is off")
+                continue
+            try:
+                if self.approve_and_publish(j['business_id'], j['id'], actor, expected_fingerprint=j['fingerprint'],
+                                            expected_hash=digest(j['draft'])) == 'published':
+                    sent += 1
+            except (PublishBlocked, ValueError, GoogleError) as exc:
+                skipped.append(f"#{j['id']}: {exc}")
+        return sent, skipped
 
     # -------------------------------------------------------- staff actions
     def save_draft(self, bid, jid, actor, text, expected_fingerprint):
@@ -243,10 +282,10 @@ class Engine:
         """Send the approved reply. Returns the final status."""
         with self.lock:
             b, j = self._business(bid), self.db.job(bid, jid)
-            reasons = publish_blockers(b, j, paused=self.db.setting('paused') == '1', automatic=automatic,
-                                       staff_approvals=self.db.count_actions(bid, 'Approved'), expected_hash=expected_hash)
             if self.db.count_actions(bid, 'Publish attempt', time.time() - 60) >= EDITS_PER_MINUTE:
-                reasons.append('Google allows about 10 reply changes a minute per profile. Wait a minute and try again.')
+                raise PublishBlocked(['Google allows about 10 reply changes a minute per profile. Wait a minute and try again.'])
+            reasons = publish_blockers(b, j, paused=self.db.setting('paused') == '1', automatic=automatic,
+                                       expected_hash=expected_hash)
             if reasons:
                 if j['status'] == 'approved':
                     self.db.audit(bid, jid, actor, 'Publish blocked', ' '.join(reasons))
@@ -388,3 +427,4 @@ class Engine:
                 except Exception:
                     pass  # recorded on the business; the dashboard shows it
         self.run_pending()
+        self.publish_waiting_auto()

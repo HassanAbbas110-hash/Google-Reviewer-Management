@@ -228,8 +228,6 @@ class Database:
                     sets.append('version=version+1')
                 if any(k in ('facts', 'contact') for k in changed):
                     sets.append('facts_approved=0')
-                if any(k in KNOWLEDGE for k in changed):
-                    sets.append("publish_mode=CASE publish_mode WHEN 'auto' THEN 'manual' ELSE publish_mode END")
                 c.execute('UPDATE businesses SET ' + ','.join(sets) + ' WHERE id=?', (*[values[k] for k in changed], bid))
                 self._audit(c, bid, None, actor, 'Business details changed', ', '.join(changed))
                 return bid
@@ -248,7 +246,7 @@ class Database:
                    'model'}
         if not values or set(values) - allowed:
             raise ValueError('Invalid settings')
-        if 'publish_mode' in values and values['publish_mode'] not in ('off', 'manual', 'auto'):
+        if 'publish_mode' in values and values['publish_mode'] not in ('off', 'manual', 'auto', 'auto_most'):
             raise ValueError('Invalid publishing mode')
         with self.connect() as c:
             c.execute('UPDATE businesses SET ' + ','.join(k + '=?' for k in values) + ' WHERE id=?', (*values.values(), bid))

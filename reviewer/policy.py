@@ -312,7 +312,7 @@ def first_channel(business):
 
 
 # ---------------------------------------------------------- publish checking
-def publish_blockers(business, job, *, paused, automatic=False, staff_approvals=0, expected_hash=None):
+def publish_blockers(business, job, *, paused, automatic=False, expected_hash=None):
     """Every reason this exact reply must not be sent now. Empty list = allowed.
 
     Called server-side at the moment of sending, not only when a page renders.
@@ -324,7 +324,7 @@ def publish_blockers(business, job, *, paused, automatic=False, staff_approvals=
         out.append('All publishing is paused.')
     if mode == 'off':
         out.append('Publishing is off for this business (draft-only).')
-    if automatic and mode != 'auto':
+    if automatic and mode not in AUTO_MODES:
         out.append('Automatic publishing is not enabled for this business.')
     if not business.get('consent'):
         out.append('The owner has not authorised WebRift to publish replies.')
@@ -350,17 +350,27 @@ def publish_blockers(business, job, *, paused, automatic=False, staff_approvals=
     if job.get('issues_hard'):
         out.append('The reply failed a safety check: ' + job['issues_hard'])
     if automatic:
-        if job.get('category') not in ('routine', 'rating_only') or not job.get('auto_eligible'):
-            out.append('Only clear routine reviews can be published automatically.')
-        if not business.get('pilot_verified'):
-            out.append('The draft-only pilot has not been signed off.')
-        if staff_approvals < AUTO_MIN_APPROVALS:
-            out.append(f'Automatic publishing needs at least {AUTO_MIN_APPROVALS} staff-approved drafts first.')
+        allowed = auto_categories(mode)
+        if job.get('category') not in allowed or (job.get('category') == 'routine' and not job.get('auto_eligible')):
+            out.append('This kind of review is not set to reply automatically.')
+        if not business.get('facts_approved'):
+            out.append('Business facts have not been checked.')
         if job.get('draft_source') not in ('ai', 'quick'):
             out.append('Automatic publishing only sends unedited system drafts.')
+        if job.get('issues_soft'):
+            out.append('The draft has a style note, so a person should look at it.')
         if job.get('baseline'):
             out.append('Reviews from before the first sync are never published automatically.')
     return out
 
 
-AUTO_MIN_APPROVALS = 10
+AUTO_MODES = ('auto', 'auto_most')
+
+
+def auto_categories(mode):
+    """What each automatic level may answer on its own. Sensitive and unclear: never."""
+    if mode == 'auto':
+        return ('routine', 'rating_only')
+    if mode == 'auto_most':
+        return ('routine', 'rating_only', 'mixed', 'complaint')
+    return ()

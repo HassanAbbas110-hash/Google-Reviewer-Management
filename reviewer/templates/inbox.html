@@ -22,6 +22,12 @@
   {% endfor %}
 </nav>
 
+{% if ready %}
+<div class="notice ok ready-bar">
+  <span><b>{{ ready }} repl{{ 'y' if ready == 1 else 'ies' }} ready to send.</b> Each passed every check (no sensitive or unclear reviews).</span>
+  <form method="post" action="/publish-ready"><input type="hidden" name="csrf" value="{{ csrf }}">{% if bid %}<input type="hidden" name="business" value="{{ bid }}">{% endif %}<input type="hidden" name="next" value="{{ request.full_path }}"><button>Publish all ready replies</button></form>
+</div>
+{% endif %}
 {% if drafting %}<p class="working" data-reload="5">Drafting replies in the background. This list refreshes on its own; you can keep working.</p>{% endif %}
 
 <div class="list">

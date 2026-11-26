@@ -42,7 +42,7 @@ A fictional demo business, an old integration, or a public listing does **not** 
 
 1. **Draft-only pilot.** Leave publishing *Draft-only*. Let staff review and approve drafts for a couple of weeks. Owner reads a sample.
 2. **Manual publishing.** Record the owner's authorisation (tick the box), switch to *Manual*. Each reply needs approval, then a confirmation screen showing the exact text and destination.
-3. **Automatic (optional).** Only after: owner authorisation, the pilot signed off, and at least 10 staff-approved drafts. Applies to clear praise and blank 4-5 star ratings only. Complaints, mixed and sensitive reviews always wait for staff.
+3. **Automatic.** Needs owner authorisation and checked facts. *Praise only* answers praise and blank 4-5 star ratings; *Most reviews* also answers mixed reviews and everyday complaints whose draft passed every check. Sensitive and unclear reviews, and drafts with any check note, always wait for staff. Recommended: run Manual for a few days first and read the drafts.
 
 ## When something goes wrong
 

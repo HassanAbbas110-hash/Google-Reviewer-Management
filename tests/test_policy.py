@@ -166,7 +166,7 @@ class QuickReplyTests(unittest.TestCase):
 class PublishEligibilityTests(unittest.TestCase):
     def ok_pair(self):
         b = dict(publish_mode='manual', consent=1, location='accounts/1/locations/2', connection_status='Connected',
-                 version=3, pilot_verified=1)
+                 version=3, facts_approved=1)
         j = dict(status='approved', draft='Thanks!', approved_hash=digest('Thanks!'), fingerprint='f',
                  approved_fingerprint='f', approved_version=3, category='routine', draft_source='ai', auto_eligible=1)
         return b, j
@@ -174,8 +174,9 @@ class PublishEligibilityTests(unittest.TestCase):
     def test_allowed_when_everything_lines_up(self):
         b, j = self.ok_pair()
         self.assertEqual(publish_blockers(b, j, paused=False), [])
-        self.assertEqual(publish_blockers(dict(b, publish_mode='auto'), j, paused=False, automatic=True,
-                                          staff_approvals=10), [])
+        self.assertEqual(publish_blockers(dict(b, publish_mode='auto'), j, paused=False, automatic=True), [])
+        self.assertEqual(publish_blockers(dict(b, publish_mode='auto_most'), dict(j, category='mixed'), paused=False, automatic=True), [])
+        self.assertEqual(publish_blockers(dict(b, publish_mode='auto_most'), dict(j, category='complaint'), paused=False, automatic=True), [])
 
     def test_each_failed_safeguard_blocks(self):
         b, j = self.ok_pair()
@@ -192,12 +193,15 @@ class PublishEligibilityTests(unittest.TestCase):
             (dict(b), dict(j, category='sensitive'), {}),
             (dict(b), dict(j), {'expected_hash': 'other'}),
             (dict(b), dict(j, issues_hard='Unapproved contact'), {}),
-            (dict(b, publish_mode='manual'), dict(j), {'automatic': True, 'staff_approvals': 50}),
-            (dict(b, publish_mode='auto'), dict(j, category='mixed'), {'automatic': True, 'staff_approvals': 50}),
-            (dict(b, publish_mode='auto'), dict(j), {'automatic': True, 'staff_approvals': 2}),
-            (dict(b, publish_mode='auto', pilot_verified=0), dict(j), {'automatic': True, 'staff_approvals': 50}),
-            (dict(b, publish_mode='auto'), dict(j, draft_source='staff'), {'automatic': True, 'staff_approvals': 50}),
-            (dict(b, publish_mode='auto'), dict(j, baseline=1), {'automatic': True, 'staff_approvals': 50}),
+            (dict(b, publish_mode='manual'), dict(j), {'automatic': True}),
+            (dict(b, publish_mode='auto'), dict(j, category='mixed'), {'automatic': True}),
+            (dict(b, publish_mode='auto_most'), dict(j, category='uncertain'), {'automatic': True}),
+            (dict(b, publish_mode='auto_most'), dict(j, category='sensitive', draft_source='staff'), {'automatic': True}),
+            (dict(b, publish_mode='auto', facts_approved=0), dict(j), {'automatic': True}),
+            (dict(b, publish_mode='auto'), dict(j, draft_source='staff'), {'automatic': True}),
+            (dict(b, publish_mode='auto'), dict(j, baseline=1), {'automatic': True}),
+            (dict(b, publish_mode='auto'), dict(j, issues_soft='Too long'), {'automatic': True}),
+            (dict(b, publish_mode='auto'), dict(j, auto_eligible=0), {'automatic': True}),
         ]
         for i, (bb, jj, kw) in enumerate(cases):
             kw.setdefault('paused', False)

@@ -23,6 +23,8 @@ QUEUES = [
     ('done', 'Done', ('published', 'already_replied', 'no_reply', 'expired')),
     ('all', 'All', None),
 ]
+MODE_LABELS = {'off': 'drafts only', 'manual': 'you approve each reply', 'auto': 'auto-replies to praise',
+               'auto_most': 'auto-replies to most reviews'}
 NEXT_ACTIONS = ['', 'Review and approve reply', 'Write staff reply', 'Owner to decide', 'Owner to call customer',
                 'Check order / payment records', 'Check product batch', 'Wait for customer', 'No public reply']
 
@@ -103,7 +105,7 @@ def create_app(db, engine, background=False, secret_key=None, lab=None):
     @app.context_processor
     def shared():
         alerts = [a for a in db.alerts(open_only=True) if a['kind'] == 'owner_action' or a['state'] == 'failed']
-        return dict(all_businesses=db.businesses(), paused=db.setting('paused') == '1', actor_name=session.get('actor', ''),
+        return dict(mode_labels=MODE_LABELS, all_businesses=db.businesses(), paused=db.setting('paused') == '1', actor_name=session.get('actor', ''),
                     open_alerts=alerts, status_labels=STATUS_LABELS, csrf=session.get('csrf', ''), now=time.time())
 
     @app.template_filter('when')
@@ -212,8 +214,18 @@ def create_app(db, engine, background=False, secret_key=None, lab=None):
             j['business_name'] = names.get(j['business_id'], '?')
         counts = {k: sum(1 for j in jobs if in_queue(j, k)) for k, _, _ in QUEUES}
         shown = [j for j in jobs if in_queue(j, queue)]
+        modes = {b['id']: b['publish_mode'] for b in db.businesses()}
+        ready = [j for j in engine.ready_to_send(bid) if modes.get(j['business_id']) != 'off']
         return render_template('inbox.html', jobs=shown, counts=counts, queues=QUEUES, queue=queue, bid=bid, status=status,
-                               since=since, until=until, drafting=any(j['status'] in ('new', 'drafting') for j in shown))
+                               since=since, until=until, drafting=any(j['status'] in ('new', 'drafting') for j in shown),
+                               ready=len(ready))
+
+    @app.post('/publish-ready')
+    def publish_ready():
+        bid = request.form.get('business', type=int)
+        sent, skipped = engine.publish_all_ready(actor(), bid)
+        flash(f'Published {sent} repl{"y" if sent == 1 else "ies"}.' + (f' {len(skipped)} left for you: ' + '; '.join(skipped[:3]) if skipped else ''))
+        return back(f'/inbox{"?business=%d" % bid if bid else ""}')
 
     # ------------------------------------------------------------ reviews
     @app.get('/business/<int:bid>/review/<int:jid>')
@@ -239,13 +251,19 @@ def create_app(db, engine, background=False, secret_key=None, lab=None):
             engine.request_draft(bid, jid, who)
         elif action == 'save':
             engine.save_draft(bid, jid, who, form.get('reply', ''), form.get('fingerprint'))
-        elif action == 'approve':
+        elif action in ('approve', 'approve-publish'):
             if form.get('reply') is not None and form.get('reply', '').strip() != (db.job(bid, jid)['draft'] or '').strip():
                 engine.save_draft(bid, jid, who, form.get('reply', ''), form.get('fingerprint'))
             j = db.job(bid, jid)
-            engine.approve(bid, jid, who, expected_fingerprint=form.get('fingerprint'), expected_hash=digest(j['draft'])
-                           if form.get('reply') is not None else form.get('hash'),
-                           confirm_commitments=form.get('confirm_commitments') == 'on')
+            kw = dict(expected_fingerprint=form.get('fingerprint'),
+                      expected_hash=digest(j['draft']) if form.get('reply') is not None else form.get('hash'),
+                      confirm_commitments=form.get('confirm_commitments') == 'on')
+            if action == 'approve':
+                engine.approve(bid, jid, who, **kw)
+            else:
+                engine.approve_and_publish(bid, jid, who, **kw)
+                flash('Reply published.' if not business(bid)['is_demo'] else 'Reply published to the fictional demo profile.')
+                return redirect(form.get('next') or f'/inbox?business={bid}')
         elif action == 'publish':
             engine.publish(bid, jid, who, expected_hash=form.get('hash', ''))
         elif action == 'reconcile':
@@ -332,23 +350,14 @@ def create_app(db, engine, background=False, secret_key=None, lab=None):
             b = business(bid)
             if request.form.get('version') != str(b['version']):
                 raise ValueError('Business details changed since you opened this page. Refresh and check them again.')
-            flags = {k: int(request.form.get(k) == 'on') for k in ('consent', 'facts_approved', 'pilot_verified')}
+            flags = {k: int(request.form.get(k) == 'on') for k in ('consent', 'facts_approved')}
             mode = request.form.get('publish_mode', 'off')
-            if mode not in ('off', 'manual', 'auto'):
+            if mode not in ('off', 'manual', 'auto', 'auto_most'):
                 raise ValueError('Unknown publishing mode.')
             if mode != 'off' and not flags['consent']:
-                raise ValueError('Publishing needs the owner\'s recorded authorisation first.')
-            if mode == 'auto':
-                missing = []
-                if not flags['facts_approved']:
-                    missing.append('approved business facts')
-                if not flags['pilot_verified']:
-                    missing.append('a signed-off draft-only pilot')
-                from reviewer.policy import AUTO_MIN_APPROVALS
-                if db.count_actions(bid, 'Approved') < AUTO_MIN_APPROVALS:
-                    missing.append(f'at least {AUTO_MIN_APPROVALS} staff-approved drafts')
-                if missing:
-                    raise ValueError('Automatic publishing needs ' + ', '.join(missing) + '.')
+                raise ValueError('Tick "The owner has authorised WebRift to reply" first. Google requires the owner\'s consent.')
+            if mode in ('auto', 'auto_most') and not flags['facts_approved']:
+                raise ValueError('Tick "I checked the facts" first, so automatic replies only use correct details.')
             db.update_settings(bid, **flags, publish_mode=mode, consent_at=time.time() if flags['consent'] and not b['consent'] else b['consent_at'])
             changes = [f'{k}={v}' for k, v in dict(flags, publish_mode=mode).items() if str(b[k]) != str(v)]
             if changes:
@@ -572,7 +581,7 @@ def status_checks(db, engine):
             fix = 'Draft-only is fine. To fetch live reviews, see docs\\GOOGLE_SETUP.md.'
         elif state == 'fail':
             fix = b['last_error'] or 'Open the business page for details.'
-        mode = {'off': 'publishing off', 'manual': 'manual publishing', 'auto': 'automatic publishing'}[b['publish_mode']]
+        mode = MODE_LABELS[b['publish_mode']]
         checks.append({'name': 'Google: ' + b['name'], 'state': state,
                        'detail': f"{b['connection_status']}; {mode}; last sync {time.strftime('%d %b %H:%M', time.localtime(b['last_poll'])) if b['last_poll'] else 'never'}",
                        'fix': fix})

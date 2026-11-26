@@ -65,18 +65,20 @@
 </section>
 
 <section id="publishing">
-  <div class="section-title"><h2>Publishing controls</h2><span class="pill">{{ {'off':'DRAFT-ONLY','manual':'MANUAL','auto':'AUTOMATIC'}[b.publish_mode] }}</span></div>
+  <div class="section-title"><h2>How replies get posted</h2><span class="pill">{{ mode_labels[b.publish_mode]|upper }}</span></div>
+  {% if b.publish_mode in ('auto','auto_most') and not b.facts_approved %}<div class="notice warn">Automatic replies are paused because the facts changed. Check them and tick the box below again.</div>{% endif %}
   <form method="post" action="/business/{{ b.id }}/settings" class="controls">
     {{ hidden() }}<input type="hidden" name="version" value="{{ b.version }}">
-    <label class="check"><input type="checkbox" name="facts_approved" {{ 'checked' if b.facts_approved }}> I checked the facts and contact channels above. (Needed for AI drafts.)</label>
-    <label class="check"><input type="checkbox" name="consent" {{ 'checked' if b.consent }}> The owner has specifically authorised WebRift to publish review replies for this business.</label>
-    <label class="check"><input type="checkbox" name="pilot_verified" {{ 'checked' if b.pilot_verified }}> The draft-only pilot is done and the owner is happy with reply quality.</label>
-    <fieldset><legend>Publishing</legend>
-      <label class="check"><input type="radio" name="publish_mode" value="off" {{ 'checked' if b.publish_mode == 'off' }}> <b>Draft-only</b>: nothing can be posted (default).</label>
-      <label class="check"><input type="radio" name="publish_mode" value="manual" {{ 'checked' if b.publish_mode == 'manual' }}> <b>Manual</b>: staff approve each reply, then confirm publishing.</label>
-      <label class="check"><input type="radio" name="publish_mode" value="auto" {{ 'checked' if b.publish_mode == 'auto' }}> <b>Automatic for clear praise only</b>. Needs owner authorisation, a signed-off pilot and at least 10 staff approvals ({{ approvals }} so far). Complaints, mixed and sensitive reviews always wait for staff.</label>
+    <label class="check"><input type="checkbox" name="facts_approved" {{ 'checked' if b.facts_approved }}> I checked the facts and contact details above.</label>
+    <label class="check"><input type="checkbox" name="consent" {{ 'checked' if b.consent }}> The owner has authorised WebRift to reply to reviews for this business. (Google requires this.)</label>
+    <fieldset><legend>Choose one</legend>
+      <label class="check"><input type="radio" name="publish_mode" value="auto_most" {{ 'checked' if b.publish_mode == 'auto_most' }}> <span><b>Reply automatically to most reviews</b> (recommended once you're happy with the drafts). Praise, ratings, mixed reviews and everyday complaints are answered on their own when the draft passes every check. You only see safety, billing, legal or unclear reviews, plus any draft the checks weren't happy with.</span></label>
+      <label class="check"><input type="radio" name="publish_mode" value="auto" {{ 'checked' if b.publish_mode == 'auto' }}> <span><b>Reply automatically to praise only.</b> Complaints and mixed reviews wait for one click from you.</span></label>
+      <label class="check"><input type="radio" name="publish_mode" value="manual" {{ 'checked' if b.publish_mode == 'manual' }}> <span><b>I approve every reply</b> (one click each, or "Publish all ready replies" in the inbox).</span></label>
+      <label class="check"><input type="radio" name="publish_mode" value="off" {{ 'checked' if b.publish_mode == 'off' }}> <span><b>Drafts only.</b> Nothing is posted.</span></label>
     </fieldset>
-    <button>Save publishing controls</button>
+    <button>Save</button>
+    <small>Reviews from before the business was connected are never answered automatically. Sensitive reviews never get an automatic or AI reply.</small>
   </form>
 </section>
 

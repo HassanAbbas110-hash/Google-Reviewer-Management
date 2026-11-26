@@ -253,25 +253,43 @@ class PublishingSafetyTests(Base):
 
 
 class AutoPublishTests(Base):
-    def test_auto_needs_opt_in_pilot_and_track_record(self):
-        self.db.update_settings(self.bid, publish_mode='auto', consent=1, pilot_verified=1)
-        jobs = self.sync_and_draft()
-        self.assertEqual(sum(self.mock.post_count(self.bid, f'demo{i}') for i in range(1, 11)), 0)  # < 10 approvals
-        for _ in range(10):
-            self.db.audit(self.bid, 1, 'Miki', 'Approved')
-        self.mock.add(self.bid, 'demo11', 'Zoe', 5, 'Friendly people and a tidy shop.')
-        self.mock.add(self.bid, 'demo12', 'Ann', 5, 'Friendly people, but the battery started smoking.')
-        self.mock.add(self.bid, 'demo13', 'Bob', 4, 'Helpful advice and fair prices. Parking was difficult.')
-        self.engine.poll(self.bid)
-        self.engine.run_pending()
-        self.assertEqual(self.mock.post_count(self.bid, 'demo11'), 1)   # clear routine praise
-        self.assertEqual(self.mock.post_count(self.bid, 'demo12'), 0)   # sensitive
-        self.assertEqual(self.mock.post_count(self.bid, 'demo13'), 0)   # mixed
+    def test_praise_only_level(self):
+        self.db.update_settings(self.bid, publish_mode='auto', consent=1)
+        self.sync_and_draft()
+        self.assertEqual(self.mock.post_count(self.bid, 'demo1'), 1)    # praise
+        self.assertEqual(self.mock.post_count(self.bid, 'demo2'), 1)    # blank 5 stars
+        self.assertEqual(self.mock.post_count(self.bid, 'demo4'), 0)    # mixed waits
+        self.assertEqual(self.mock.post_count(self.bid, 'demo6'), 0)    # complaint waits
+        self.assertEqual(self.mock.post_count(self.bid, 'demo7'), 0)    # safety held
+
+    def test_most_reviews_level(self):
+        self.db.update_settings(self.bid, publish_mode='auto_most', consent=1)
+        self.sync_and_draft()
+        self.assertEqual(self.mock.post_count(self.bid, 'demo4'), 1)    # mixed parking
+        self.assertEqual(self.mock.post_count(self.bid, 'demo6'), 1)    # drill complaint
+        for rid in ('demo7', 'demo8', 'demo9'):                          # battery, double charge, injection
+            self.assertEqual(self.mock.post_count(self.bid, rid), 0)
+        held = [j for j in self.db.jobs(self.bid) if j['category'] == 'sensitive']
+        self.assertTrue(held and all(j['status'] == 'needs_review' for j in held))
+
+    def test_auto_needs_owner_consent(self):
+        self.db.update_settings(self.bid, publish_mode='auto_most', consent=0)
+        self.sync_and_draft()
+        self.assertEqual(sum(self.mock.post_count(self.bid, f'demo{i}') for i in range(1, 11)), 0)
+
+    def test_rate_limited_auto_replies_go_out_later(self):
+        self.db.update_settings(self.bid, publish_mode='auto_most', consent=1)
+        for _ in range(8):
+            self.db.audit(self.bid, None, 'x', 'Publish attempt')
+        self.sync_and_draft()
+        self.assertEqual(self.mock.post_count(self.bid, 'demo1'), 0)
+        with self.db.connect() as c:
+            c.execute("UPDATE audit SET at=0 WHERE action='Publish attempt'")
+        self.engine.publish_waiting_auto()
+        self.assertEqual(self.mock.post_count(self.bid, 'demo1'), 1)
 
     def test_first_sync_is_baseline_and_never_auto_published(self):
-        self.db.update_settings(self.bid, publish_mode='auto', consent=1, pilot_verified=1)
-        for _ in range(10):
-            self.db.audit(self.bid, 1, 'Miki', 'Approved')
+        self.db.update_settings(self.bid, publish_mode='auto_most', consent=1)
         older = {j['comment']: j for j in self.db.jobs(self.bid)}
         self.assertEqual(older['Been coming here for years. Good people.']['status'], 'already_replied')  # kept
         backlog = older['Decent range of paint.']

@@ -24,4 +24,4 @@
 - ⬜ One manual publish on a genuine review, then check it on Google Maps; press Sync and confirm the case stays Published
 - ⬜ Token expiry (7 days while the consent screen is in Testing): confirm "Reconnect needed" appears and reconnecting works
 - ⬜ If wanted: SMTP set up and one real owner alert received
-- ⬜ Only after all of the above, and ≥10 staff approvals: consider automatic publishing for clear praise
+- ⬜ Then switch to "Reply automatically to most reviews" and spot-check the Done tab for the first week

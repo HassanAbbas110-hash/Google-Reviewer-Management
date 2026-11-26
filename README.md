@@ -5,7 +5,8 @@ Manage Google reviews for many businesses from one local inbox. Replies are draf
 - **Staff (e.g. Miki)** work the inbox: read why each review was routed, edit or regenerate the draft, approve, publish, add notes, set the next action.
 - **Owners** are alerted only when their judgement is needed (product safety, billing disputes, threats, serious allegations).
 - **Sensitive reviews never get an AI reply.** They are held for staff investigation and a staff-written reply.
-- **Publishing starts off.** Manual publishing needs the owner's recorded authorisation. Automatic publishing is a separate opt-in, for clear praise only.
+- **Hands-off once it's set up.** Tick two boxes per business (facts checked, owner authorised), choose **Reply automatically to most reviews**, and praise, ratings, mixed reviews and everyday complaints get answered on their own when the draft passes every check. You only see safety, billing, legal and unclear reviews, plus the odd draft the checks didn't like. Anything left over: **Publish all ready replies** in one click.
+- **Publishing starts off** for every business until you switch it on.
 - **Works without Ollama** (blank 5-star reviews still get a quick reply; everything else waits for staff) and **without Google** (fictional demo + test lab).
 
 ## Install on a clean Windows laptop

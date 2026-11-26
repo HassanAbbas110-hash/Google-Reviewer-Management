@@ -169,12 +169,33 @@ class ReviewFlowTests(WebBase):
         self.post(url + '/save', {'reply': 'Thanks for coming in, glad the tools were right!', 'fingerprint': j['fingerprint']})
         self.assertEqual(self.db.job(bid, j['id'])['status'], 'needs_review')
 
-    def test_auto_mode_refused_without_prerequisites(self):
+    def test_auto_mode_needs_owner_consent_and_checked_facts(self):
         bid = self.demo()
-        r = self.post(f'/business/{bid}/settings', {'version': self.db.business(bid)['version'], 'consent': 'on',
-                                                    'facts_approved': 'on', 'pilot_verified': 'on', 'publish_mode': 'auto'})
+        v = lambda: self.db.business(bid)['version']
+        r = self.post(f'/business/{bid}/settings', {'version': v(), 'facts_approved': 'on', 'publish_mode': 'auto_most'})
         self.assertEqual(r.status_code, 400)
-        self.assertIn('10 staff-approved', r.text)
+        self.assertIn('owner', r.text)
+        r = self.post(f'/business/{bid}/settings', {'version': v(), 'consent': 'on', 'publish_mode': 'auto_most'})
+        self.assertEqual(r.status_code, 400)
+        r = self.post(f'/business/{bid}/settings', {'version': v(), 'consent': 'on', 'facts_approved': 'on', 'publish_mode': 'auto_most'})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(self.db.business(bid)['publish_mode'], 'auto_most')
+
+    def test_one_click_and_bulk_publish(self):
+        bid = self.demo()
+        self.post(f'/business/{bid}/settings', {'version': self.db.business(bid)['version'], 'consent': 'on',
+                                                'facts_approved': 'on', 'publish_mode': 'manual'})
+        j = next(j for j in self.db.jobs(bid) if j['comment'].startswith('The drill'))
+        r = self.post(f'/business/{bid}/review/{j["id"]}/approve-publish', {'reply': j['draft'], 'fingerprint': j['fingerprint']})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(self.db.job(bid, j['id'])['status'], 'published')
+        self.assertIn('ready to send', self.client.get('/inbox', base_url=BASE).text)
+        self.post('/publish-ready')
+        statuses = {j['comment'][:20]: j['status'] for j in self.db.jobs(bid)}
+        self.assertEqual(statuses['The team helped me f'], 'published')
+        self.assertEqual(statuses['Excellent prices, but'[:20]], 'needs_review')  # sensitive never bulk-sent
+        self.assertEqual(statuses['I was charged twice f'[:20]], 'needs_review')
+        self.assertNotIn('ready to send', self.client.get('/inbox', base_url=BASE).text)
 
     def test_case_tools(self):
         bid = self.demo()
