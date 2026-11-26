@@ -1,20 +1,20 @@
 # WebRift Review Manager
 
-Manage Google reviews for many businesses from one local inbox. Replies are drafted by a **local** AI model (Ollama, free, on your laptop) in each business's own voice, checked by the app, and published only after a person approves them.
+Manage Google reviews for many businesses from one local inbox. Replies are drafted by **Claude** (Anthropic's API, a few seconds each) or, with no API key, a free local model (Ollama), in each business's own voice, checked by the app, and published only after a person approves them.
 
 - **Staff (e.g. Miki)** work the inbox: read why each review was routed, edit or regenerate the draft, approve, publish, add notes, set the next action.
 - **Owners** are alerted only when their judgement is needed (product safety, billing disputes, threats, serious allegations).
 - **Sensitive reviews never get an AI reply.** They are held for staff investigation and a staff-written reply.
 - **Hands-off once it's set up.** Tick two boxes per business (facts checked, owner authorised), choose **Reply automatically to most reviews**, and praise, ratings, mixed reviews and everyday complaints get answered on their own when the draft passes every check. You only see safety, billing, legal and unclear reviews, plus the odd draft the checks didn't like. Anything left over: **Publish all ready replies** in one click.
 - **Publishing starts off** for every business until you switch it on.
-- **Works without Ollama** (blank 5-star reviews still get a quick reply; everything else waits for staff) and **without Google** (fictional demo + test lab).
+- **Works without any AI** (blank 5-star reviews still get a quick reply; everything else waits for staff) and **without Google** (fictional demo + test lab).
 
 ## Install on a clean Windows laptop
 
 1. Install **Python 3.11+** from [python.org](https://www.python.org/downloads/) (tick *Add python.exe to PATH*).
-2. Install **Ollama** from [ollama.com/download](https://ollama.com/download), then in a terminal: `ollama pull qwen3:4b` (2.5 GB, once). Optional: the app runs without it.
-3. Get this folder: GitHub Desktop → *Clone* `HassanAbbas110-hash/Google-Reviewer-Management`, or download the ZIP and extract it.
-4. Double-click **`Setup.cmd`** (installs and self-tests, a few minutes).
+2. Get this folder: GitHub Desktop → *Clone* `HassanAbbas110-hash/Google-Reviewer-Management`, or download the ZIP and extract it.
+3. Double-click **`Setup.cmd`** (installs and self-tests, a few minutes).
+4. **AI drafts (recommended):** create an API key at [console.anthropic.com](https://console.anthropic.com) (Settings → API keys, add some credit), double-click **`Set-API-Key.cmd`** and paste it. The key is kept in Windows Credential Manager. Default model `claude-opus-5-5` (about 1.5 cents a reply); choose `claude-haiku-5-5` on the Status page for about 40× cheaper. Review text and business facts are sent to Anthropic to write each draft; every app check still runs on the reply. *No key?* Free local option: install [Ollama](https://ollama.com/download) and run `ollama pull qwen3:4b` (slower: 30–60 s a draft).
 5. Double-click **`Start.cmd`**. The browser opens at `http://127.0.0.1:8765`. Keep the black window open while you work.
 
 Daily use: **just `Start.cmd`**. On first start, type your name in *Working as* (every action is recorded with it), then either **Create the demo shop** (fictional) or **Add a business**.
@@ -24,6 +24,7 @@ Daily use: **just `Start.cmd`**. On first start, type your name in *Working as* 
 | `Start.cmd` | Opens the app (runs setup automatically the first time) |
 | `Setup.cmd` | Installs or repairs; safe to rerun |
 | `Update.cmd` | Backs up your data, pulls the newest version, reinstalls |
+| `Set-API-Key.cmd` | Stores the Anthropic API key (`Set-API-Key.cmd remove` goes back to local Ollama). Restart the app after |
 | `Doctor.cmd` | Checks database, Ollama, model, Google, alerts; says what to fix |
 | `Connect-Google.cmd` | Connects a business to its Google Business Profile ([guide](docs/GOOGLE_SETUP.md)) |
 
@@ -64,7 +65,7 @@ Business publishing mode, owner authorisation, Google connection, the exact appr
 
 ## Data, privacy, retention
 
-Everything stays on this computer in `data\`. Google tokens and the SMTP password live in Windows Credential Manager, never in files. Review text and drafts are deleted after 29 days (Google allows at most 30). Open investigations keep their status, notes and history without the review text. Disconnecting a business deletes its token and cached review text. Configuration-only backups (no reviews, no tokens): `.venv\Scripts\python.exe -m reviewer backup settings.json` / `restore settings.json`.
+Everything is stored on this computer in `data\`. With an API key, each review being drafted (text, rating, business facts and voice) is sent to Anthropic's API; nothing else is. Google tokens and the SMTP password live in Windows Credential Manager, never in files. Review text and drafts are deleted after 29 days (Google allows at most 30). Open investigations keep their status, notes and history without the review text. Disconnecting a business deletes its token and cached review text. Configuration-only backups (no reviews, no tokens): `.venv\Scripts\python.exe -m reviewer backup settings.json` / `restore settings.json`.
 
 Optional owner emails: `.venv\Scripts\python.exe -m reviewer smtp --host smtp.yourmail.com --sender alerts@you.com --user alerts@you.com` (password prompt). Emails never include review text. Without SMTP, alerts are dashboard-only and stay visible until someone marks "Owner told".
 
@@ -85,7 +86,7 @@ See [docs/MODEL_BENCHMARK.md](docs/MODEL_BENCHMARK.md). Drafting runs in the bac
 | Area | Files |
 |---|---|
 | Routing + publish eligibility | `reviewer/policy.py`, tests `tests/test_policy.py` |
-| Drafting, voice, reply checks, Ollama | `reviewer/ai.py`, tests `tests/test_replies.py` |
+| Drafting, voice, reply checks, Claude API / Ollama | `reviewer/ai.py`, tests `tests/test_replies.py` |
 | Workflow (sync, draft, approve, publish, reconcile, cases) | `reviewer/engine.py`, tests `tests/test_workflow.py` |
 | Storage, migrations, audit, alerts, retention | `reviewer/database.py` |
 | Google adapter / fictional adapter | `reviewer/google.py`, `reviewer/mock_google.py` |

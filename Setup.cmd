@@ -21,13 +21,8 @@ echo  [4/4] Self-test...
 if errorlevel 1 ( echo  Self-test failed. Details are in setup-test.log. Send that file to your developer. & pause & exit /b 1 )
 del setup-test.log >nul 2>&1
 echo.
-where ollama >nul 2>&1
-if errorlevel 1 (
-  echo  Note: Ollama ^(local AI^) is not installed. The app works without it, but only blank 4-5 star reviews get drafts.
-  echo        To enable AI drafts: install from https://ollama.com/download, then run:  ollama pull qwen3:4b
-) else (
-  echo  Ollama found. Recommended model for this laptop: qwen3:4b  ^(if missing:  ollama pull qwen3:4b^)
-)
+echo  AI drafts: double-click Set-API-Key.cmd and paste an Anthropic API key ^(recommended: fast, best replies^).
+echo  No key? The free local option is Ollama: https://ollama.com/download then  ollama pull qwen3:4b
 echo.
 echo  Setup complete. Double-click Start.cmd to open the Review Manager.
 pause

@@ -294,6 +294,7 @@ def make_draft(ai, business, text, rating, recent=()):
 # ------------------------------------------------------------------- Ollama
 class Ollama:
     """Local Ollama only. Rejects cloud-routed models so no paid API is used."""
+    label = 'Local AI (Ollama) · no paid API'
 
     def __init__(self, model='', timeout=DEFAULT_TIMEOUT):
         self.model = model
@@ -347,8 +348,91 @@ class Ollama:
         return json.loads(r.json()['message']['content'])
 
 
+# ------------------------------------------------------------------- Claude
+REPLY_SCHEMA = {'type': 'object', 'required': ['category', 'reply'], 'additionalProperties': False,
+                'properties': {'category': {'type': 'string', 'enum': ['routine', 'mixed', 'complaint', 'sensitive']},
+                               'reply': {'type': 'string'}}}
+CLAUDE_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5']
+
+
+class Claude:
+    """Paid online drafting through the Anthropic API. Same interface as Ollama.
+
+    Review text and business facts are sent to Anthropic; the app's checks still
+    run on every reply before anyone (or auto-publish) can use it.
+    """
+    label = 'Claude API (online)'
+
+    def __init__(self, api_key, model='', timeout=60):
+        import anthropic
+        self.client = anthropic.Anthropic(api_key=api_key, timeout=timeout, max_retries=2)
+        self.model = model
+        self.timeout = timeout
+
+    def models(self, fresh=False):
+        return CLAUDE_MODELS
+
+    def loaded(self):
+        return []
+
+    def model_for(self, business):
+        # Old Ollama names (e.g. qwen3:4b) left in settings fall back to the default.
+        for m in (business.get('model'), self.model):
+            if m and m.strip() in CLAUDE_MODELS:
+                return m.strip()
+        return CLAUDE_MODELS[0]
+
+    def available(self, business):
+        return True
+
+    def generate(self, business, messages):
+        model = self.model_for(business)
+        system = '\n\n'.join(m['content'] for m in messages if m['role'] == 'system')
+        kwargs = dict(model=model, max_tokens=4000, system=system,
+                      messages=[m for m in messages if m['role'] != 'system'],
+                      output_config={'effort': 'low', 'format': {'type': 'json_schema', 'schema': REPLY_SCHEMA}},
+                      timeout=self.timeout)
+        if model == 'claude-haiku-5-5':  # no server-side fallback for Haiku
+            response = self.client.messages.create(**kwargs)
+        else:  # a safety decline is re-run on a fallback model in the same call
+            response = self.client.beta.messages.create(betas=['server-side-fallback-2026-07-01'], fallbacks='default', **kwargs)
+        if response.stop_reason == 'refusal':
+            raise ValueError('Claude API: the model declined this review; write the reply by hand.')
+        if response.stop_reason == 'max_tokens':
+            raise ValueError('Claude API: the reply was cut off; retry.')
+        return json.loads(next(b.text for b in response.content if b.type == 'text'))
+
+
+def make_ai(api_key, model='', timeout=120):
+    """Claude when an API key is stored, otherwise the local Ollama model."""
+    return Claude(api_key, model, min(timeout, 120)) if api_key else Ollama(model, timeout)
+
+
+def _claude_error(exc):
+    try:
+        import anthropic
+    except ImportError:
+        return None
+    if isinstance(exc, anthropic.AuthenticationError):
+        return 'Claude API: the API key was rejected. Run Set-API-Key.cmd with a valid key, then restart.'
+    if isinstance(exc, anthropic.PermissionDeniedError):
+        return 'Claude API: this key cannot use the chosen model. Check the key\'s workspace or pick another model on the Status page.'
+    if isinstance(exc, anthropic.RateLimitError):
+        return 'Claude API: rate limit or credit limit reached. Check billing at console.anthropic.com, then retry.'
+    if isinstance(exc, anthropic.APITimeoutError):
+        return 'Claude API: no answer in time. Retry.'
+    if isinstance(exc, anthropic.APIConnectionError):
+        return 'Claude API: no internet connection. Check the network, then retry.'
+    if isinstance(exc, anthropic.APIStatusError):
+        return f'Claude API: request failed ({exc.status_code}). Retry; if it keeps failing, check console.anthropic.com.'
+    return None
+
+
 def friendly_error(exc):
     """One-line, component-named error with the fix. Never includes response bodies."""
+    claude = _claude_error(exc)
+    if claude:
+        return claude
     if isinstance(exc, (requests.Timeout, TimeoutError)):
         return ('Ollama: the model took too long. Retry, close other apps, or pick a smaller model on the Status page.')
     if isinstance(exc, (requests.ConnectionError, ConnectionError)):
@@ -356,7 +440,7 @@ def friendly_error(exc):
     if isinstance(exc, requests.HTTPError):
         return 'Ollama: rejected the request. Check the model is installed (ollama list) and there is free memory.'
     if isinstance(exc, ValueError):
-        return 'Ollama: ' + str(exc)
+        return str(exc) if str(exc).startswith('Claude API:') else 'Ollama: ' + str(exc)
     if isinstance(exc, (json.JSONDecodeError, KeyError)):
         return 'Ollama: the model returned something unreadable. Retry or try another model.'
     return 'Local model: drafting failed (' + type(exc).__name__ + '). Retry, or write the reply by hand.'

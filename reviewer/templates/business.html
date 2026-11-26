@@ -28,7 +28,7 @@
     <label>Owner / decision-maker<input name="owner_name" value="{{ b.owner_name if b }}" maxlength="80"></label>
     <label>Owner alert email (optional)<input type="email" name="notify_email" value="{{ b.notify_email if b }}" maxlength="254">
       <small>Alerts always show in the dashboard. Email only if SMTP is set up.</small></label>
-    <label>Local AI model<select name="model"><option value="">Use the default ({{ 'set on Status page' }})</option>
+    <label>AI model<select name="model"><option value="">Use the default ({{ 'set on Status page' }})</option>
       {% for m in models %}<option {{ 'selected' if b and b.model == m }}>{{ m }}</option>{% endfor %}
       {% if b and b.model and b.model not in models %}<option selected>{{ b.model }}</option>{% endif %}</select></label>
     <div class="wide"><button>Save</button> <small>Changing the voice, facts or contacts makes existing approvals stale (they must be approved again), and turns automatic publishing back to manual.</small></div>

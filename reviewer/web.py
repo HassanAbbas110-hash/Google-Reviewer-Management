@@ -106,7 +106,7 @@ def create_app(db, engine, background=False, secret_key=None, lab=None):
     def shared():
         alerts = [a for a in db.alerts(open_only=True) if a['kind'] == 'owner_action' or a['state'] == 'failed']
         return dict(mode_labels=MODE_LABELS, all_businesses=db.businesses(), paused=db.setting('paused') == '1', actor_name=session.get('actor', ''),
-                    open_alerts=alerts, status_labels=STATUS_LABELS, csrf=session.get('csrf', ''), now=time.time())
+                    open_alerts=alerts, status_labels=STATUS_LABELS, ai_label=getattr(engine.ai, 'label', ''), csrf=session.get('csrf', ''), now=time.time())
 
     @app.template_filter('when')
     def when(ts):
@@ -469,7 +469,7 @@ def create_app(db, engine, background=False, secret_key=None, lab=None):
         if not timeout.isdigit() or not 20 <= int(timeout) <= 600:
             raise ValueError('Timeout must be 20 to 600 seconds.')
         if model and model not in _models():
-            raise ValueError(f'"{model}" is not installed. Run: ollama pull {model}')
+            raise ValueError(f'"{model}" is not available. Pick one from the list.')
         db.set_setting('default_model', model)
         db.set_setting('model_timeout', timeout)
         engine.ai.model = model
@@ -556,6 +556,11 @@ def status_checks(db, engine):
                        'fix': 'Check the data folder is not read-only or open in another program.'})
     ai = engine.ai
     default = db.setting('default_model', '')
+    if hasattr(ai, 'client'):  # Claude API
+        checks.append({'name': 'AI drafting', 'state': 'ok',
+                       'detail': f'Claude API (online), model {ai.model_for({})}. Review text is sent to Anthropic to draft replies.',
+                       'fix': ''})
+        return _rest_checks(db, checks)
     try:
         installed = ai.models(fresh=True)
         checks.append({'name': 'Ollama', 'state': 'ok', 'detail': f'Running. Installed: {", ".join(installed) or "none"}',
@@ -572,6 +577,10 @@ def status_checks(db, engine):
         checks.append({'name': 'Ollama', 'state': 'warn', 'detail': 'Not reachable at 127.0.0.1:11434.',
                        'fix': 'Open the Ollama app (or run "ollama serve"). Until then only blank 4-5 star reviews get drafts; '
                               'everything else waits for staff.'})
+    return _rest_checks(db, checks)
+
+
+def _rest_checks(db, checks):
     for b in db.businesses():
         state = 'ok' if b['connection_status'] in ('Connected', 'Demo') else ('warn' if b['connection_status'] in ('Not connected', 'Disconnected') else 'fail')
         fix = ''

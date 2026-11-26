@@ -10,12 +10,12 @@
 </table>
 </section>
 <section>
-<h2>Local AI model</h2>
+<h2>AI model</h2>
 <form method="post" action="/status/model" class="grid-form">
   <input type="hidden" name="csrf" value="{{ csrf }}">
-  <label>Default model for all businesses<select name="default_model"><option value="">(none: only quick replies and staff-written replies)</option>
+  <label>Default model for all businesses<select name="default_model"><option value="">{{ "(default: claude-opus-5-5)" if "Claude" in ai_label else "(none: only quick replies and staff-written replies)" }}</option>
     {% for m in models %}<option {{ 'selected' if m == default_model }}>{{ m }}</option>{% endfor %}</select>
-    <small>Recommended on a 16 GB laptop without a graphics card: <b>qwen3:4b</b> (see docs\MODEL_BENCHMARK.md). A business can override this.</small></label>
+    <small>{% if "Claude" in ai_label %}Claude API: <b>claude-opus-5-5</b> writes the best replies (about 1.5 cents each); <b>claude-haiku-5-5</b> is about 40 times cheaper. {% else %}Recommended on a 16 GB laptop without a graphics card: <b>qwen3:4b</b> (see docs\MODEL_BENCHMARK.md). For faster, better drafts run Set-API-Key.cmd. {% endif %}A business can override this.</small></label>
   <label>Give up on a draft after (seconds)<input name="timeout" value="{{ timeout }}" inputmode="numeric" maxlength="3">
     <small>If the model is slower, the review shows "Draft failed" with a Retry button. Nothing else is blocked.</small></label>
   <div class="wide"><button>Save</button></div>

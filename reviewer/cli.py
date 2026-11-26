@@ -92,12 +92,13 @@ def secret_key(root):
 
 
 def build(root):
-    from reviewer.ai import Ollama
+    from reviewer.ai import make_ai
     from reviewer.engine import Engine
     from reviewer.google import Google, Vault
     db = Database(root / 'reviews.db')
     google = Google(Vault(hashlib.sha256(str(root).encode()).hexdigest()[:16]))
-    ai = Ollama(db.setting('default_model', ''), int(db.setting('model_timeout', '120')))
+    key = google.vault.get('anthropic') if google.vault.has('anthropic') else os.environ.get('ANTHROPIC_API_KEY', '')
+    ai = make_ai(key, db.setting('default_model', ''), int(db.setting('model_timeout', '120')))
     return db, google, ai, Engine(db, google, ai)
 
 
@@ -182,6 +183,8 @@ def main():
     smtp.add_argument('--port', type=int, default=465)
     smtp.add_argument('--sender', required=True)
     smtp.add_argument('--user', required=True)
+    key = sub.add_parser('apikey', help='Use the Claude API for drafts (stores the key in Windows Credential Manager)')
+    key.add_argument('--remove', action='store_true', help='Forget the key and go back to local Ollama')
     sub.add_parser('backup', help='Save business settings (no reviews, no tokens)').add_argument('file')
     sub.add_parser('restore', help='Load business settings from a backup').add_argument('file')
     args = parser.parse_args()
@@ -190,11 +193,22 @@ def main():
     try:
         if args.command == 'doctor':
             return doctor(root)
-        if args.command in ('backup', 'restore', 'smtp'):
+        if args.command in ('backup', 'restore', 'smtp', 'apikey'):
             db, google, _, _ = build(root)
             if args.command == 'backup':
                 backup_config(db, args.file)
                 print('Settings saved. Protect this file: it contains business details.')
+            elif args.command == 'apikey':
+                if args.remove:
+                    google.vault.delete('anthropic')
+                    print('API key removed. Drafts use local Ollama after the next start.')
+                    return
+                import getpass
+                value = getpass.getpass('Paste your Anthropic API key (input hidden): ').strip()
+                if not value.startswith('sk-ant-'):
+                    raise ValueError('That does not look like an Anthropic API key (it starts with sk-ant-).')
+                google.vault.put('anthropic', value)
+                print('Key saved in Windows Credential Manager. Restart the app: drafts now use the Claude API.')
             elif args.command == 'restore':
                 restore_config(db, args.file)
                 print('Businesses imported with publishing off. Reconnect Google and approve facts again.')

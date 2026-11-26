@@ -2,7 +2,7 @@
 import json
 import unittest
 from unittest.mock import patch
-from reviewer.ai import check_reply, check_staff_reply, make_draft, build_messages, Ollama
+from reviewer.ai import check_reply, check_staff_reply, make_draft, build_messages, Ollama, make_ai, friendly_error
 from reviewer.policy import classify
 
 SHOP = {'name': 'Bolt & Brush Hardware', 'facts': 'Family-run hardware and paint shop. Free key cutting.',
@@ -239,6 +239,46 @@ class OllamaAdapterTests(unittest.TestCase):
         with patch.object(ai, 'models', return_value=[]):
             with self.assertRaisesRegex(ValueError, 'ollama pull'):
                 ai.generate({'model': 'qwen3:4b'}, [])
+
+
+class ClaudeAdapterTests(unittest.TestCase):
+    def fake(self, stop='end_turn', text='{"category":"routine","reply":"Glad we could help!"}'):
+        from types import SimpleNamespace as NS
+        calls = []
+
+        def create(**kw):
+            calls.append(kw)
+            return NS(stop_reason=stop, content=[NS(type='thinking'), NS(type='text', text=text)])
+        ai = make_ai('sk-ant-test', 'qwen3:4b')
+        ai.client = NS(messages=NS(create=create), beta=NS(messages=NS(create=create)))
+        return ai, calls
+
+    def test_key_selects_claude_and_old_ollama_model_falls_back(self):
+        self.assertIsInstance(make_ai(''), Ollama)
+        ai, calls = self.fake()
+        out = ai.generate({}, [{'role': 'system', 'content': 'rules'}, {'role': 'user', 'content': 'review'}])
+        self.assertEqual(out['reply'], 'Glad we could help!')
+        kw = calls[0]
+        self.assertEqual((kw['model'], kw['system'], kw['fallbacks']), ('claude-opus-5-5', 'rules', 'default'))
+        self.assertEqual([m['role'] for m in kw['messages']], ['user'])
+        self.assertEqual(kw['output_config']['format']['type'], 'json_schema')
+
+    def test_haiku_skips_fallbacks(self):
+        ai, calls = self.fake()
+        ai.generate({'model': 'claude-haiku-5-5'}, [{'role': 'user', 'content': 'x'}])
+        self.assertNotIn('fallbacks', calls[0])
+
+    def test_refusal_is_a_readable_error(self):
+        ai, _ = self.fake(stop='refusal', text='')
+        with self.assertRaises(ValueError) as e:
+            ai.generate({}, [{'role': 'user', 'content': 'x'}])
+        self.assertTrue(friendly_error(e.exception).startswith('Claude API:'))
+
+    def test_bad_key_message(self):
+        import anthropic, httpx2
+        req = httpx2.Request('POST', 'https://api.anthropic.com/v1/messages')
+        exc = anthropic.AuthenticationError('bad', response=httpx2.Response(401, request=req), body=None)
+        self.assertIn('Set-API-Key.cmd', friendly_error(exc))
 
 
 if __name__ == '__main__':

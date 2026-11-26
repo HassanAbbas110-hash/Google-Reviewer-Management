@@ -20,7 +20,7 @@
     <small>{{ item.connection_status }} · {{ mode_labels[item.publish_mode] }}</small></a>
   {% endfor %}
   <a class="nav-item add" href="/business/new">+ Add a business</a>
-  <div class="local"><i></i> Runs on this computer<small>Local AI (Ollama) · no paid API</small></div>
+  <div class="local"><i></i> Runs on this computer<small>{{ ai_label }}</small></div>
 </aside>
 <main>
   <header>
