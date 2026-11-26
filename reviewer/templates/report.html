@@ -1,1 +1,14 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Monthly activity · {{b.name}}</title><link rel="stylesheet" href="/static/app.css"></head><body><main><section><span class="eyebrow">WEBRIFT MONTHLY ACTIVITY</span><h1>{{b.name}}</h1><form><label>Select month<input type="month" name="month" value="{{report.month}}"></label><button>View summary</button></form><div class="stats"><article><small>REPLIES PUBLISHED</small><strong>{{report.published}}</strong></article><article><small>INVESTIGATIONS OPENED</small><strong>{{report.investigations_opened}}</strong></article><article><small>APPROVAL EVENTS</small><strong>{{report.needs_approval}}</strong></article></div><p>Failed processing events: {{report.failed}}.</p><p>This summary counts the application's activity in UTC for {{report.month}}. Approval events may repeat when a review changes. It does not calculate Google ratings or claim to include every review. No Google review content is retained in these activity totals.</p><p>Use your browser's Print command to save or share this summary as PDF.</p><a href="/business/{{b.id}}">Back to workspace</a></section></main></body></html>
+{% extends 'base.html' %}
+{% block title %}Monthly activity · {{ b.name }}{% endblock %}
+{% block content %}
+<div class="intro"><span class="eyebrow">MONTHLY ACTIVITY</span><h1>{{ b.name }}</h1>
+<form method="get"><label>Month <input type="month" name="month" value="{{ report.month }}"></label> <button class="secondary small">View</button></form></div>
+<div class="stats">
+  <article><small>REPLIES PUBLISHED</small><strong>{{ report.published }}</strong></article>
+  <article><small>INVESTIGATIONS OPENED</small><strong>{{ report.investigations_opened }}</strong></article>
+  <article><small>REVIEWS READY FOR STAFF</small><strong>{{ report.needs_approval }}</strong></article>
+  <article><small>FAILED DRAFTS</small><strong>{{ report.failed }}</strong></article>
+</div>
+<section><p>Counts this app's own activity in UTC for {{ report.month }}. It is not a Google rating report and holds no review text. Use the browser's Print to save it as PDF.</p>
+<p><a href="/weekly?business={{ b.id }}">Weekly view</a> · <a href="/business/{{ b.id }}">Business settings</a></p></section>
+{% endblock %}

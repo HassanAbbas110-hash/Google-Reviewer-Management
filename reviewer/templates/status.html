@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Status{% endblock %}
+{% block content %}
+<div class="intro"><span class="eyebrow">STATUS</span><h1>Is everything working?</h1><p>Each line names a part of the system. Anything not green says what to do.</p></div>
+<section>
+<table class="checks">
+{% for c in checks %}
+<tr class="{{ c.state }}"><td><span class="dot {{ c.state }}"></span></td><th>{{ c.name }}</th><td>{{ c.detail }}{% if c.fix %}<br><b>Fix:</b> {{ c.fix }}{% endif %}</td></tr>
+{% endfor %}
+</table>
+</section>
+<section>
+<h2>Local AI model</h2>
+<form method="post" action="/status/model" class="grid-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Default model for all businesses<select name="default_model"><option value="">(none: only quick replies and staff-written replies)</option>
+    {% for m in models %}<option {{ 'selected' if m == default_model }}>{{ m }}</option>{% endfor %}</select>
+    <small>Recommended on a 16 GB laptop without a graphics card: <b>qwen3:4b</b> (see docs\MODEL_BENCHMARK.md). A business can override this.</small></label>
+  <label>Give up on a draft after (seconds)<input name="timeout" value="{{ timeout }}" inputmode="numeric" maxlength="3">
+    <small>If the model is slower, the review shows "Draft failed" with a Retry button. Nothing else is blocked.</small></label>
+  <div class="wide"><button>Save</button></div>
+</form>
+</section>
+{% endblock %}

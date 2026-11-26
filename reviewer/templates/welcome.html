@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Welcome{% endblock %}
+{% block content %}
+<div class="intro"><span class="eyebrow">WELCOME</span><h1>Let's get the first business set up</h1>
+<p>Two ways to start. You can do both.</p></div>
+<div class="cards">
+  <section><h2>1. Try the fictional demo</h2>
+  <p>A made-up hardware shop with ten made-up Google reviews: praise, complaints, a smoking battery, a double charge and a review that tries to trick the AI. Practise the whole workflow. Nothing goes to Google.</p>
+  <form method="post" action="/demo"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Create the demo shop</button></form></section>
+  <section><h2>2. Add a real business</h2>
+  <p>Enter how they sound, their approved facts and contact channel. Drafting works straight away; connecting Google comes later.</p>
+  <a class="button" href="/business/new">Add a business</a></section>
+</div>
+{% if not actor_name %}<p class="notice">First, type your name in <b>Working as</b> at the top.</p>{% endif %}
+{% endblock %}

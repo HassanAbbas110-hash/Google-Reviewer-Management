@@ -10,7 +10,7 @@ class ReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             db=Database(Path(tmp)/'x.db')
             a=db.save_business({'name':'A'}); b=db.save_business({'name':'B'})
-            jid=db.ingest(a,{'name':'accounts/a/locations/b/reviews/c','comment':'PRIVATE CONTENT'})
+            jid,_=db.ingest(a,{'name':'accounts/a/locations/b/reviews/c','comment':'PRIVATE CONTENT'})
             db.change_job(a,jid,status='published')
             db.change_job(a,jid,status='published')
             db.change_job(a,jid,investigation='open')

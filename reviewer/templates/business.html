@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}{{ b.name if b else 'Add a business' }}{% endblock %}
+{% block content %}
+{% macro hidden() %}<input type="hidden" name="csrf" value="{{ csrf }}">{% endmacro %}
+<div class="intro"><span class="eyebrow">{{ 'BUSINESS SETTINGS' if b else 'ADD A BUSINESS' }}{% if b and b.is_demo %} · FICTIONAL DEMO{% endif %}</span>
+<h1>{{ b.name if b else 'Add a business' }}</h1>
+{% if b %}<p><a class="button" href="/inbox?business={{ b.id }}">Open inbox</a> <a class="button secondary" href="/business/{{ b.id }}/lab">Try reviews (test lab)</a> <a class="button secondary" href="/weekly?business={{ b.id }}">This week</a> <a class="button secondary" href="/business/{{ b.id }}/monthly">Monthly activity</a> <a class="button secondary" href="/business/{{ b.id }}/operations.csv">Export CSV</a></p>{% endif %}
+</div>
+
+{% if b and b.is_demo %}<div class="notice">This is a <b>fictional</b> shop with fictional reviews. "Publishing" stores the reply on this computer only. Use it to practise the full workflow.</div>{% endif %}
+{% if b and b.last_error %}<div class="notice error">{{ b.last_error }}</div>{% endif %}
+
+<section id="voice">
+  <div class="section-title"><h2>How replies should sound</h2><span class="pill">USED FOR EVERY DRAFT</span></div>
+  <form method="post" action="/business" class="grid-form">
+    {{ hidden() }}{% if b %}<input type="hidden" name="id" value="{{ b.id }}">{% endif %}
+    <label>Business name<input name="name" value="{{ b.name if b }}" required maxlength="200"></label>
+    <label>Website (optional)<input name="website" value="{{ b.website if b }}" maxlength="500" placeholder="https://..."></label>
+    <label class="wide">Voice: who is speaking, and how?<textarea name="voice" rows="2" maxlength="2000" placeholder="e.g. Friendly local hardware shop. Casual, warm, plain English. Short. Sounds like the person at the counter.">{{ b.voice if b }}</textarea>
+      <small>A law firm might say: "Formal but warm. Never discusses any matter publicly. No exclamation marks."</small></label>
+    <label class="wide" id="facts">Approved facts (the only facts a reply may use)<textarea name="facts" rows="4" maxlength="12000" placeholder="One short fact per line. No customer details.">{{ b.facts if b }}</textarea>
+      {% if b and b.facts_sources %}<small>Sources: {{ b.facts_sources }}</small>{% endif %}</label>
+    <label class="wide">Approved public contact channels<input name="contact" value="{{ b.contact if b }}" maxlength="500" placeholder="e.g. hello@yourshop.co.za or 011 555 0100">
+      <small>Replies may only point customers here. Leave blank if the business doesn't want contact details in replies.</small></label>
+    <label class="wide">Example replies in their voice (optional, separate with a blank line)<textarea name="examples" rows="4" maxlength="4000">{{ b.examples if b }}</textarea></label>
+    <label>Sign-off (optional)<input name="sign_off" value="{{ b.sign_off if b }}" maxlength="80" placeholder="e.g. - Sam"></label>
+    <label>Reply language<input name="language" value="{{ b.language if b else 'English' }}" maxlength="40"></label>
+    <label>Owner / decision-maker<input name="owner_name" value="{{ b.owner_name if b }}" maxlength="80"></label>
+    <label>Owner alert email (optional)<input type="email" name="notify_email" value="{{ b.notify_email if b }}" maxlength="254">
+      <small>Alerts always show in the dashboard. Email only if SMTP is set up.</small></label>
+    <label>Local AI model<select name="model"><option value="">Use the default ({{ 'set on Status page' }})</option>
+      {% for m in models %}<option {{ 'selected' if b and b.model == m }}>{{ m }}</option>{% endfor %}
+      {% if b and b.model and b.model not in models %}<option selected>{{ b.model }}</option>{% endif %}</select></label>
+    <div class="wide"><button>Save</button> <small>Changing the voice, facts or contacts makes existing approvals stale (they must be approved again), and turns automatic publishing back to manual.</small></div>
+  </form>
+  {% if b and b.website %}
+  <form method="post" action="/business/{{ b.id }}/import-facts">{{ hidden() }}<button class="secondary small">Import text from the website for review</button></form>
+  {% endif %}
+  {% if b and b.pending_facts %}
+  <div class="pending">
+    <p><b>Imported from {{ b.pending_source }}</b> · {{ b.pending_at|when }}. Nothing is used until you approve it. Delete anything that isn't a clear, current fact.</p>
+    <form method="post" action="/business/{{ b.id }}/import-facts">{{ hidden() }}
+      <textarea name="pending" rows="6">{{ b.pending_facts }}</textarea>
+      <button name="decision" value="approve">Add these to approved facts</button>
+      <button name="decision" value="discard" class="secondary">Discard</button></form>
+  </div>
+  {% endif %}
+</section>
+
+{% if b %}
+<section id="google">
+  <div class="section-title"><h2>Google connection</h2><span class="pill">{{ b.connection_status }}</span></div>
+  {% if b.is_demo %}
+    <p>Connected to the fictional demo profile.</p>
+  {% elif b.location %}
+    <p>Location: <code>{{ b.location }}</code>{% if not connected %} · <span class="error">sign-in token missing; reconnect</span>{% endif %}</p>
+  {% else %}
+    <p>Not connected. The inbox, drafts and test lab work without Google. To fetch live reviews you need approved Google API access; follow <b>docs\GOOGLE_SETUP.md</b>, then close the app and double-click <code>Connect-Google.cmd</code> and enter <b>{{ b.id }}</b>.</p>
+  {% endif %}
+  <p class="muted">Last sync: {{ b.last_poll|when or 'never' }}. The first sync only records existing reviews as a backlog; they are never answered automatically.</p>
+  <div class="button-row">
+    {% if b.location %}<form method="post" action="/business/{{ b.id }}/sync">{{ hidden() }}<input type="hidden" name="next" value="/inbox?business={{ b.id }}"><button class="secondary">Sync reviews now</button></form>{% endif %}
+    {% if b.location or b.is_demo %}<form method="post" action="/business/{{ b.id }}/disconnect">{{ hidden() }}<button class="secondary danger">Disconnect and remove cached reviews</button></form>{% endif %}
+  </div>
+</section>
+
+<section id="publishing">
+  <div class="section-title"><h2>Publishing controls</h2><span class="pill">{{ {'off':'DRAFT-ONLY','manual':'MANUAL','auto':'AUTOMATIC'}[b.publish_mode] }}</span></div>
+  <form method="post" action="/business/{{ b.id }}/settings" class="controls">
+    {{ hidden() }}<input type="hidden" name="version" value="{{ b.version }}">
+    <label class="check"><input type="checkbox" name="facts_approved" {{ 'checked' if b.facts_approved }}> I checked the facts and contact channels above. (Needed for AI drafts.)</label>
+    <label class="check"><input type="checkbox" name="consent" {{ 'checked' if b.consent }}> The owner has specifically authorised WebRift to publish review replies for this business.</label>
+    <label class="check"><input type="checkbox" name="pilot_verified" {{ 'checked' if b.pilot_verified }}> The draft-only pilot is done and the owner is happy with reply quality.</label>
+    <fieldset><legend>Publishing</legend>
+      <label class="check"><input type="radio" name="publish_mode" value="off" {{ 'checked' if b.publish_mode == 'off' }}> <b>Draft-only</b>: nothing can be posted (default).</label>
+      <label class="check"><input type="radio" name="publish_mode" value="manual" {{ 'checked' if b.publish_mode == 'manual' }}> <b>Manual</b>: staff approve each reply, then confirm publishing.</label>
+      <label class="check"><input type="radio" name="publish_mode" value="auto" {{ 'checked' if b.publish_mode == 'auto' }}> <b>Automatic for clear praise only</b>. Needs owner authorisation, a signed-off pilot and at least 10 staff approvals ({{ approvals }} so far). Complaints, mixed and sensitive reviews always wait for staff.</label>
+    </fieldset>
+    <button>Save publishing controls</button>
+  </form>
+</section>
+
+{% if b.place_id %}
+<section><h2>Invite reviews</h2><p>Share with every genuine customer. Don't offer rewards or only ask happy customers.</p>
+<img class="qr" src="/business/{{ b.id }}/review-qr.svg" alt="QR code linking to the Google review form"><p><a href="/business/{{ b.id }}/review-qr.svg" download>Download QR</a></p></section>
+{% endif %}
+
+<section><h2>Recent activity</h2>
+<ol class="timeline">{% for h in history %}<li><b>{{ h.action }}</b> · {{ h.actor }} · {{ h.at|when }}{% if h.detail %} · <small>{{ h.detail }}</small>{% endif %}</li>{% else %}<li>Nothing yet.</li>{% endfor %}</ol></section>
+{% endif %}
+{% endblock %}

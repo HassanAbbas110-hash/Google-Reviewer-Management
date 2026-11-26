@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Publish case #{{ j.id }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/business/{{ b.id }}/review/{{ j.id }}">← Back to case #{{ j.id }}</a></p>
+<div class="intro"><span class="eyebrow">CONFIRM PUBLISHING</span><h1>Post this reply publicly?</h1></div>
+<section class="confirm">
+  <dl>
+    <dt>Business</dt><dd>{{ b.name }}</dd>
+    <dt>Destination</dt><dd>{% if b.is_demo %}<b>Fictional demo profile</b> (stays on this computer, never Google){% else %}Google Business Profile location <code>{{ b.location }}</code>{% endif %}</dd>
+    <dt>Reviewer</dt><dd>{{ j.reviewer }} · {{ j.rating|stars }}</dd>
+    <dt>Their review</dt><dd>{{ j.comment or 'Rating only' }}</dd>
+    <dt>Approved by</dt><dd>{{ j.approved_by }} {{ j.approved_at|when }}</dd>
+  </dl>
+  <p class="label">Exact reply that will be posted</p>
+  <blockquote class="exact">{{ j.draft }}</blockquote>
+  {% if reasons %}
+    <div class="notice error"><b>This can't be published yet:</b><ul>{% for r in reasons %}<li>{{ r }}</li>{% endfor %}</ul>
+    {% if b.publish_mode == 'off' %}Turn on manual publishing in <a href="/business/{{ b.id }}#publishing">{{ b.name }} settings</a> once the owner has authorised it.{% endif %}</div>
+  {% else %}
+    <form method="post" action="/business/{{ b.id }}/review/{{ j.id }}/publish">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="hash" value="{{ j.approved_hash }}">
+      <button>Yes, publish this reply</button> <a class="button secondary" href="/business/{{ b.id }}/review/{{ j.id }}">Cancel</a>
+    </form>
+    <p class="muted">The app checks Google first: if someone already replied there, or the customer changed their review, nothing is sent.</p>
+  {% endif %}
+</section>
+{% endblock %}

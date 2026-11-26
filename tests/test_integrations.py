@@ -56,7 +56,7 @@ class IntegrationTests(unittest.TestCase):
                 def login(self,*args): pass
                 def locations(self,*args): raise TimeoutError()
             with self.assertRaises(TimeoutError): connect_business(db,BrokenGoogle(),bid,'unused',lambda _: '1')
-            self.assertEqual(db.business(bid)['auto_enabled'],0)
+            self.assertEqual(db.business(bid)['publish_mode'],'off')
             self.assertEqual(db.business(bid)['consent'],0)
             self.assertEqual(db.business(bid)['location'],'')
     def test_credential_store_rejects_chained_or_plaintext_backend(self):

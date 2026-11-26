@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}Case #{{ j.id }}{% endblock %}
+{% block content %}
+{% macro hidden(next=None) %}<input type="hidden" name="csrf" value="{{ csrf }}">{% endmacro %}
+<p class="crumbs"><a href="/inbox?business={{ b.id }}">← {{ b.name }} inbox</a></p>
+<div class="intro"><span class="eyebrow">CASE #{{ j.id }} · {{ b.name|upper }}{% if b.is_demo %} · FICTIONAL DEMO{% endif %}</span>
+<h1>{{ j.reviewer }} <span class="stars big">{{ j.rating|stars }}</span></h1></div>
+
+<div class="case" data-poll="/business/{{ b.id }}/review/{{ j.id }}/state" data-status="{{ j.status }}" data-updated="{{ j.updated }}">
+<div class="col">
+  <section>
+    <div class="section-title"><h2>Review</h2><small>{{ j.created|when }}</small></div>
+    <p class="review-text">{{ j.comment or ('The review text expired from local storage (Google content is kept for 29 days).' if j.status == 'expired' else 'No written comment, rating only.') }}</p>
+    {% if j.google_reply %}<p class="label">Reply currently on Google</p><blockquote>{{ j.google_reply }}</blockquote>{% endif %}
+  </section>
+
+  <section>
+    <div class="section-title"><h2>Why it's here</h2><span class="pill cat-{{ j.category or 'none' }}">{{ (j.category or 'not classified yet')|replace('_',' ') }}</span></div>
+    <p>{{ j.staff_note or 'Waiting to be classified.' }}</p>
+    {% if j.concern_list %}<p>{% for c in j.concern_list %}<span class="chip {{ 'hot' if c.sensitive }}">{{ c.label }}</span>{% endfor %}</p>{% endif %}
+    <p class="muted">Status: <b>{{ j.status_label }}</b>{% if j.approved_by and j.status in ('approved','publishing','publish_unknown','published') %} · approved by {{ j.approved_by }} {{ j.approved_at|when }}{% endif %}{% if j.published_at %} · published {{ j.published_at|when }}{% endif %}</p>
+    {% if j.error %}<p class="error">{{ j.error }}</p>{% endif %}
+  </section>
+
+  <section>
+    <div class="section-title"><h2>Public reply</h2>
+      {% if j.draft_source %}<small>{{ {'ai':'AI draft','quick':'quick reply (no AI needed)','staff':'written/edited by staff'}[j.draft_source] }}{% if j.draft_seconds %} · {{ j.draft_seconds }}s{% endif %}</small>{% endif %}</div>
+
+    {% if j.status in ('new','drafting') %}
+      <p class="working">Writing a draft in the background{% if b.model %} with {{ b.model }}{% endif %}. Usually 10 to 60 seconds on a laptop. This page updates by itself; you can open other reviews meanwhile.</p>
+    {% elif j.status in ('published','already_replied') %}
+      <blockquote>{{ j.draft or j.google_reply }}</blockquote>
+    {% elif j.status == 'expired' %}
+      <p class="muted">No reply text is kept after the review text expires.</p>
+    {% else %}
+      {% if j.category == 'sensitive' and j.draft_source != 'staff' %}
+        <div class="notice warn">Held for staff. No AI reply is written for this review. Check the facts first, then write a short, careful reply below (or mark it "no public reply").</div>
+      {% endif %}
+      {% if j.issues_hard %}<div class="notice error"><b>Can't be used yet:</b> {{ j.issues_hard }}</div>{% endif %}
+      {% if j.issues_soft %}<div class="notice"><b>Style:</b> {{ j.issues_soft }}</div>{% endif %}
+      {% if j.status != 'baseline' %}
+      <form method="post" action="/business/{{ b.id }}/review/{{ j.id }}/approve" class="reply-form">
+        {{ hidden() }}<input type="hidden" name="fingerprint" value="{{ j.fingerprint }}">
+        <textarea name="reply" rows="4" maxlength="4000" placeholder="Write the public reply here.">{{ j.draft }}</textarea>
+        <small>Write as the business. One or two plain sentences. Only use contact details listed for {{ b.name }}: {{ b.contact or 'none approved yet' }}.</small>
+        <label class="check"><input type="checkbox" name="confirm_commitments"> If this reply promises a refund, replacement or other remedy, the owner agreed to it.</label>
+        <div class="button-row">
+          {% if j.status == 'approved' %}
+            <span class="pill st-approved">Approved</span>
+            <button formaction="/business/{{ b.id }}/review/{{ j.id }}/save" class="secondary">Save changes (needs re-approval)</button>
+          {% else %}
+            <button>Approve this reply</button>
+            <button formaction="/business/{{ b.id }}/review/{{ j.id }}/save" class="secondary">Save without approving</button>
+          {% endif %}
+        </div>
+      </form>
+      {% endif %}
+      <div class="button-row">
+        {% if j.status == 'approved' %}<a class="button" href="/business/{{ b.id }}/review/{{ j.id }}/publish">Publish to Google…</a>{% endif %}
+        {% if j.category != 'sensitive' and j.status in ('needs_review','failed','approved','baseline') %}
+          <form method="post" action="/business/{{ b.id }}/review/{{ j.id }}/draft">{{ hidden() }}<button class="secondary">{{ 'Regenerate draft' if j.draft else 'Write a draft' }}</button></form>
+        {% endif %}
+        {% if j.status in ('publish_unknown','publishing') %}
+          <form method="post" action="/business/{{ b.id }}/review/{{ j.id }}/reconcile">{{ hidden() }}<button>Check Google for this reply</button></form>
+        {% endif %}
+        {% if j.status in ('baseline','no_reply') %}
+          <form method="post" action="/business/{{ b.id }}/review/{{ j.id }}/reopen">{{ hidden() }}<button class="secondary">{{ 'Handle this older review' if j.status == 'baseline' else 'Reopen' }}</button></form>
+        {% endif %}
+        {% if j.status not in ('no_reply','publishing','publish_unknown') %}
+          <form method="post" action="/business/{{ b.id }}/review/{{ j.id }}/no-reply">{{ hidden() }}<input type="hidden" name="reason" value="Staff decision"><button class="secondary">No public reply</button></form>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+</div>
+
+<div class="col side">
+  <section>
+    <h2>Investigation</h2>
+    <p>Status: <b>{{ {'none':'none','open':'open','in_progress':'in progress','resolved':'resolved'}[j.investigation] }}</b>. Publishing a reply does not close it.</p>
+    <form method="post" action="/business/{{ b.id }}/review/{{ j.id }}/investigation">{{ hidden() }}
+      <select name="state">{% for s, l in [('open','Open'),('in_progress','In progress'),('resolved','Resolved')] %}<option value="{{ s }}" {{ 'selected' if j.investigation == s }}>{{ l }}</option>{% endfor %}</select>
+      <textarea name="note" rows="2" placeholder="What happened / how it was resolved (required to resolve)"></textarea>
+      <button class="secondary small">Update investigation</button></form>
+    {% for a in alerts %}<p><span class="pill {{ a.state }}">owner alert: {{ a.state }}</span>{% if a.acknowledged_by %} · owner told by {{ a.acknowledged_by }}{% endif %}</p>{% endfor %}
+  </section>
+  <section>
+    <h2>Next action</h2>
+    <form method="post" action="/business/{{ b.id }}/review/{{ j.id }}/next">{{ hidden() }}
+      <select name="next_action">{% for a in next_actions %}<option {{ 'selected' if a == j.next_action }} value="{{ a }}">{{ a or '(none)' }}</option>{% endfor %}</select>
+      <input name="assignee" value="{{ j.assignee }}" placeholder="Who (e.g. Miki, {{ b.owner_name or 'owner' }})" maxlength="80">
+      <button class="secondary small">Save next action</button></form>
+  </section>
+  <section>
+    <h2>Internal note</h2>
+    <form method="post" action="/business/{{ b.id }}/review/{{ j.id }}/note">{{ hidden() }}
+      <textarea name="note" rows="2" placeholder="Only staff see this. Never posted." required maxlength="2000"></textarea>
+      <button class="secondary small">Add note</button></form>
+  </section>
+  <section>
+    <h2>History</h2>
+    <ol class="timeline">{% for h in history|reverse %}<li><b>{{ h.action }}</b> · {{ h.actor }} · {{ h.at|when }}{% if h.detail %}<br><small>{{ h.detail }}</small>{% endif %}</li>{% else %}<li>No activity yet.</li>{% endfor %}</ol>
+  </section>
+</div>
+</div>
+{% endblock %}

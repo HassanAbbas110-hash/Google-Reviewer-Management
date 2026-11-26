@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Review Manager{% endblock %} · WebRift</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+<aside>
+  <a class="brand" href="/inbox"><b>W</b><span>WebRift<small>REVIEW MANAGER</small></span></a>
+  <nav>
+    <a class="nav-item {{ 'active' if request.path == '/inbox' }}" href="/inbox">Inbox</a>
+    <a class="nav-item {{ 'active' if request.path == '/weekly' }}" href="/weekly">This week</a>
+    <a class="nav-item {{ 'active' if request.path == '/status' }}" href="/status">Status</a>
+  </nav>
+  <p class="nav-label">BUSINESSES</p>
+  {% for item in all_businesses %}
+  <a class="nav-item {{ 'active' if b is defined and b and item.id == b.id }}" href="/business/{{ item.id }}">{{ item.name }}
+    <small>{{ item.connection_status }} · {{ {'off':'draft-only','manual':'manual publish','auto':'auto publish'}[item.publish_mode] }}</small></a>
+  {% endfor %}
+  <a class="nav-item add" href="/business/new">+ Add a business</a>
+  <div class="local"><i></i> Runs on this computer<small>Local AI (Ollama) · no paid API</small></div>
+</aside>
+<main>
+  <header>
+    <form method="post" action="/actor" class="actor">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="{{ request.full_path }}">
+      <label>Working as <input name="actor" value="{{ actor_name }}" placeholder="Your name" maxlength="60" required></label>
+      <button class="secondary small">{{ 'Change' if actor_name else 'Save' }}</button>
+    </form>
+    <form method="post" action="/pause">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="{{ request.full_path }}">
+      <button class="{{ 'warn' if paused else 'secondary' }} small">{{ 'Resume processing' if paused else 'Pause all processing' }}</button>
+    </form>
+  </header>
+  {% if not actor_name %}<div class="notice">Type your name in <b>Working as</b> above. Every approval, edit and publish is recorded with it.</div>{% endif %}
+  {% if paused %}<div class="notice warn">Processing is paused: no drafts are written and nothing is published until you resume.</div>{% endif %}
+  {% with messages = get_flashed_messages() %}{% for m in messages %}<div class="notice ok">{{ m }}</div>{% endfor %}{% endwith %}
+  {% if open_alerts %}
+  <section class="alerts">
+    <h2>Needs the owner <span class="count">{{ open_alerts|length }}</span></h2>
+    {% for a in open_alerts[:6] %}
+    <div class="alert-row {{ a.state }}">
+      <a href="/business/{{ a.business_id }}/review/{{ a.job_id }}"><b>{{ a.business_name }}</b> · case #{{ a.job_id }} · {{ 'owner input needed' if a.kind == 'owner_action' else a.kind|replace('_',' ') }}</a>
+      <span class="pill {{ a.state }}">{{ {'dashboard':'dashboard only','pending':'email queued','retrying':'email retrying','sent':'emailed','failed':'email FAILED'}.get(a.state, a.state) }}</span>
+      {% if a.last_error %}<small class="{{ 'error' if a.state == 'failed' else 'muted' }}">{{ a.last_error }}</small>{% endif %}
+      <span class="actions">
+        {% if a.state == 'failed' %}<form method="post" action="/business/{{ a.business_id }}/alert/{{ a.id }}/retry"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="{{ request.full_path }}"><button class="secondary small">Retry email</button></form>{% endif %}
+        <form method="post" action="/business/{{ a.business_id }}/alert/{{ a.id }}/ack"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="{{ request.full_path }}"><button class="secondary small">Owner told</button></form>
+      </span>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+  {% block content %}{% endblock %}
+  <footer>WebRift Review Manager · independent software, not affiliated with Google · nothing is published unless a person approves it (or a business has explicitly opted in to automatic replies)</footer>
+</main>
+</body>
+</html>

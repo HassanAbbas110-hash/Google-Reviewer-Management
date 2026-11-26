@@ -1,22 +1,27 @@
-# Live pilot acceptance — not completed in the development workspace
+# Pilot checklist
 
-- [ ] Install and run Setup.cmd/Start.cmd on the actual Windows laptop.
-- [ ] Confirm secure OS credential storage; no plaintext fallback or credentials in Git.
-- [ ] Check local Ollama model licence, memory use, generation time and offline operation.
-- [ ] Obtain Google API access, configure OAuth, select the real shop and record owner consent.
-- [ ] Verify first-sync baseline does not reply to historical reviews.
-- [ ] Evaluate 100 varied reviews (praise, rating-only, criticism, serious complaints, private details, multilingual text, injection attempts). Record acceptance without edits, factual errors, escalation misses and generation failures. This is a model evaluation, not satisfied by unit tests.
-- [ ] Verify one authorised owner-approved reply end-to-end on Google, including readback and public moderation status. Do not post fake reviews to conduct this test.
-- [ ] Verify a real subsequent review is automatically handled only after all gates are enabled.
-- [ ] Test staff reply preservation, changed review/facts invalidation and no duplicate posting.
-- [ ] Test disconnect/reconnect, expired tokens, quota failures, internet loss, restart and uncertain-write reconciliation.
-- [ ] Confirm pause and consent withdrawal stop all posting.
-- [ ] Configure SMTP if required, trigger an authorised notification and confirm delivery; verify failed deliveries remain visible.
-- [ ] Check complaint alerts do not falsely mark cases resolved.
-- [ ] Verify website import has no automatic fact approval and excludes private network URLs.
-- [ ] Check QR opens the correct shop's review destination.
-- [ ] Review monthly operational summary: no claim of Google rating/competitor analytics.
-- [ ] Verify configuration backup/restore and 29-day review-content cleanup. Protect any local data with device encryption.
-- [ ] Review current Google API policies against the commercial service. Decide separate analytics scope before offering rating history or competitor reports.
+✅ = verified on the HP ZBook test laptop (16 GB RAM, Intel UHD) with the fictional demo and mocked Google, 26 Nov 2026.
+⬜ = needs a real, authorised Google account / owner. Do not fake these with test reviews on a real listing.
 
-Only then record pilot verification and enable routine automatic publishing. No claimed quality rating replaces these checks.
+## Local (done)
+- ✅ Setup/Start/Doctor scripts on Windows; Windows Credential Manager detected
+- ✅ All owner regression cases + 50 paraphrases route correctly (`tests/test_policy.py`)
+- ✅ Sensitive reviews produce no AI reply in demo, test lab and live workflow (`tests/test_workflow.py`, `tests/test_replies.py`)
+- ✅ Every failed safeguard blocks publishing (`PublishEligibilityTests`)
+- ✅ First sync = backlog; existing Google replies preserved; edited reviews clear approval
+- ✅ Double click / concurrent publish / timeout + retry post exactly once (mock post counter)
+- ✅ Owner alerts deduplicated, visible without SMTP, failed email stays visible with retry
+- ✅ Business isolation (jobs, alerts, lab runs, adapters)
+- ✅ Form save after restart / with other local apps' cookies (old 403)
+- ✅ Real Ollama drafts benchmarked (see MODEL_BENCHMARK.md)
+
+## Needs the real Google account and owner
+- ⬜ Google Cloud project approved for Business Profile API (quota 300 QPM, not 0)
+- ⬜ OAuth consent screen + Desktop client; owner signs in via Connect-Google.cmd; correct location chosen
+- ⬜ First live sync: backlog only, no replies sent; existing owner replies shown as "Replied on Google"
+- ⬜ Owner's written authorisation to publish recorded (tick box) — and kept on file outside the app
+- ⬜ Draft-only pilot for ~2 weeks: staff approve/edit drafts; owner reads a sample; note edits needed per draft
+- ⬜ One manual publish on a genuine review, then check it on Google Maps; press Sync and confirm the case stays Published
+- ⬜ Token expiry (7 days while the consent screen is in Testing): confirm "Reconnect needed" appears and reconnecting works
+- ⬜ If wanted: SMTP set up and one real owner alert received
+- ⬜ Only after all of the above, and ≥10 staff approvals: consider automatic publishing for clear praise

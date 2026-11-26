@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Week of {{ report.start }}{% endblock %}
+{% block content %}
+<div class="intro"><span class="eyebrow">WEEKLY VIEW</span><h1>Week of {{ report.start }} to {{ report.end }}</h1>
+<p><a href="/weekly?week={{ report.prev }}{{ '&business=%d'|format(bid) if bid }}">← previous week</a> · <a href="/weekly?week={{ report.next }}{{ '&business=%d'|format(bid) if bid }}">next week →</a> · <a href="/weekly{{ '?business=%d'|format(bid) if bid }}">this week</a></p>
+<p class="muted">Review counts use the review date from Google. Pending, investigations and failures are the inbox right now. Google review text is only kept for 29 days, so older weeks shrink.</p></div>
+<div class="stats">
+  <article><small>NEW REVIEWS</small><strong>{{ report.totals.volume }}</strong></article>
+  <article><small>REPLIES PENDING</small><strong>{{ report.totals.pending }}</strong></article>
+  <article><small>OPEN INVESTIGATIONS</small><strong>{{ report.totals.investigations }}</strong></article>
+  <article><small>FAILURES</small><strong>{{ report.totals.failures + report.totals.alerts_failed }}</strong></article>
+  <article><small>PUBLISHED THIS WEEK</small><strong>{{ report.totals.published_week }}</strong></article>
+</div>
+<section>
+<table class="data">
+<thead><tr><th>Business</th><th>Reviews</th><th>★5</th><th>★4</th><th>★3</th><th>★2</th><th>★1</th><th>Avg</th><th>Pending</th><th>Investigations</th><th>Failures</th><th>Published</th></tr></thead>
+<tbody>
+{% for r in report.rows %}
+<tr><td><a href="/inbox?business={{ r.business.id }}">{{ r.business.name }}</a></td><td>{{ r.volume }}</td>
+{% for n in [5,4,3,2,1] %}<td>{{ r.ratings[n] }}</td>{% endfor %}
+<td>{{ r.average if r.average is not none else '-' }}</td><td>{{ r.pending }}</td><td>{{ r.investigations }}</td>
+<td class="{{ 'error' if r.failures or r.alerts_failed }}">{{ r.failures }}{% if r.alerts_failed %} + {{ r.alerts_failed }} alert email{% endif %}</td><td>{{ r.published_week }}</td></tr>
+{% endfor %}
+</tbody></table>
+</section>
+{% endblock %}

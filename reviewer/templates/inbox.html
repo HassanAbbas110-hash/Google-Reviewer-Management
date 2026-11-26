@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Inbox{% endblock %}
+{% block content %}
+<div class="intro"><span class="eyebrow">INBOX</span><h1>What needs doing</h1>
+<p>Open a review to see why it is here, edit or regenerate the reply, approve it, and publish. Sensitive reviews are held for staff and never get an AI reply.</p></div>
+
+<form class="filters" method="get" action="/inbox">
+  <input type="hidden" name="queue" value="{{ queue }}">
+  <label>Business <select name="business"><option value="">All businesses</option>
+    {% for item in all_businesses %}<option value="{{ item.id }}" {{ 'selected' if bid == item.id }}>{{ item.name }}</option>{% endfor %}</select></label>
+  <label>Status <select name="status"><option value="">Any</option>
+    {% for key, label in status_labels.items() %}<option value="{{ key }}" {{ 'selected' if status == key }}>{{ label }}</option>{% endfor %}</select></label>
+  <label>From <input type="date" name="from" value="{{ since }}"></label>
+  <label>To <input type="date" name="to" value="{{ until }}"></label>
+  <button class="secondary">Filter</button>
+  {% if bid %}<a class="button secondary" href="/inbox?queue={{ queue }}">Clear</a>{% endif %}
+</form>
+
+<nav class="tabs">
+  {% for key, label, _ in queues %}
+  <a class="{{ 'active' if queue == key }}" href="/inbox?queue={{ key }}{{ '&business=%d'|format(bid) if bid }}{{ '&status='+status if status }}{{ '&from='+since if since }}{{ '&to='+until if until }}">{{ label }} <span class="count {{ 'hot' if key in ('holds','failed') and counts[key] }}">{{ counts[key] }}</span></a>
+  {% endfor %}
+</nav>
+
+{% if drafting %}<p class="working" data-reload="5">Drafting replies in the background. This list refreshes on its own; you can keep working.</p>{% endif %}
+
+<div class="list">
+{% for j in jobs %}
+  <a class="row cat-{{ j.category or 'none' }}" href="/business/{{ j.business_id }}/review/{{ j.id }}">
+    <span class="stars" title="{{ j.rating }} stars">{{ j.rating|stars }}</span>
+    <span class="main">
+      <b>{{ j.reviewer }}</b> <small>{{ j.business_name }} · {{ j.created|when }}</small>
+      <span class="snippet">{{ (j.comment[:160] ~ ('…' if j.comment|length > 160 else '')) if j.comment else ('(review text expired)' if j.status == 'expired' else 'Rating only, no comment') }}</span>
+      {% if j.route_label %}<small class="why">{{ j.route_label }}{% if j.next_action %} · next: {{ j.next_action }}{% if j.assignee %} ({{ j.assignee }}){% endif %}{% endif %}</small>{% endif %}
+    </span>
+    <span class="meta">
+      <span class="pill st-{{ j.status }}">{{ j.status_label }}</span>
+      {% if j.investigation in ('open','in_progress') %}<span class="pill inv">investigation {{ j.investigation|replace('_',' ') }}</span>{% endif %}
+      {% if j.error %}<span class="pill failed">needs attention</span>{% endif %}
+    </span>
+  </a>
+{% else %}
+  <div class="empty"><h3>Nothing here</h3>
+  {% if not all_businesses %}<p>Add a business, or <b>try the fictional demo</b> to see the whole workflow without Google.</p>
+  <form method="post" action="/demo"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Create the fictional demo shop</button></form>
+  {% else %}<p>No reviews match this view.</p>{% endif %}</div>
+{% endfor %}
+</div>
+{% endblock %}
